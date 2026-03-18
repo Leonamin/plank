@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"curl -s http://localhost:4567/api/tasks | python3 -c \\\"\\nimport sys, json\\nd = json.load(sys.stdin)\\nfor t in d.get('in-progress', []):\\n    if '[ ]' in t.get('content', ''):\\n        prin...",
-  "error": "Exit code 1\n  File \"<string>\", line 8\n    print(f'{i}: matched={bool(__import__(\"re\").match(r\"^- \\[ \\] \", line))}: {repr(line)}')\n                                                                                          ^\nSyntaxError: f-string expression part cannot include a backslash",
-  "timestamp": "2026-03-18T08:14:57.048Z",
-  "retry_count": 1
-}
