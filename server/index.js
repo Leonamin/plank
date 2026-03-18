@@ -227,6 +227,67 @@ app.put('/api/tasks/:column/:id', async (req, res) => {
   }
 })
 
+// Soft delete task (move to .trash/)
+app.delete('/api/tasks/:column/:id', async (req, res) => {
+  try {
+    const { column, id } = req.params
+    const colDir = path.join(TASKS_DIR, column)
+    const found = await findTaskFileRecursive(colDir, id)
+    if (!found) return res.status(404).json({ error: 'Not found' })
+
+    const trashDir = path.join(TASKS_DIR, '.trash')
+    await fs.mkdir(trashDir, { recursive: true })
+    await fs.rename(found.fullPath, path.join(trashDir, found.file))
+
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// List trashed tasks
+app.get('/api/trash', async (req, res) => {
+  try {
+    const trashDir = path.join(TASKS_DIR, '.trash')
+    const tasks = await readTasksFromDir(trashDir)
+    res.json(tasks)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Restore from trash
+app.post('/api/trash/restore', async (req, res) => {
+  try {
+    const { taskId, to } = req.body
+    const trashDir = path.join(TASKS_DIR, '.trash')
+    const found = await findTaskFileRecursive(trashDir, taskId)
+    if (!found) return res.status(404).json({ error: 'Not found in trash' })
+
+    const destDir = path.join(TASKS_DIR, to || 'backlog')
+    await fs.mkdir(destDir, { recursive: true })
+    await fs.rename(found.fullPath, path.join(destDir, found.file))
+
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Permanent delete from trash
+app.delete('/api/trash/:id', async (req, res) => {
+  try {
+    const trashDir = path.join(TASKS_DIR, '.trash')
+    const found = await findTaskFileRecursive(trashDir, req.params.id)
+    if (!found) return res.status(404).json({ error: 'Not found in trash' })
+
+    await fs.unlink(found.fullPath)
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // --- Helpers ---
 
 async function readTasksFromDir(dir) {

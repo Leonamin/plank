@@ -384,6 +384,16 @@ body {
   background: #2563EB;
 }
 
+.btn-danger {
+  background: #7F1D1D;
+  border-color: #991B1B;
+  color: #FCA5A5;
+}
+
+.btn-danger:hover {
+  background: #991B1B;
+}
+
 .btn-add {
   width: 100%;
   border: 1px dashed var(--border);
@@ -444,6 +454,17 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+}
+
+.task-id-badge {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 10px;
+  color: #9CA3AF;
+  background: #1F2937;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 6px;
 }
 
 .check-box.checked {

@@ -96,6 +96,14 @@ function App() {
     fetchData()
   }
 
+  // --- Delete Task ---
+  const handleDelete = async (task) => {
+    if (!confirm(`"${task.title}" 태스크를 삭제할까요?`)) return
+    await fetch(`${API}/tasks/${task._column}/${task.id}`, { method: 'DELETE' })
+    setSelectedTask(null)
+    fetchData()
+  }
+
   // --- Save config ---
   const handleSaveConfig = async (newConfig) => {
     await fetch(`${API}/config`, {
@@ -144,6 +152,7 @@ function App() {
           priorities={config.priorities || []}
           allTasks={allTasks}
           onSave={(updates, opts) => handleEdit(selectedTask, updates, opts)}
+          onDelete={() => handleDelete(selectedTask)}
           onClose={() => setSelectedTask(null)}
         />
       )}
@@ -287,7 +296,7 @@ function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
 }
 
 // ===== Task Detail Modal (view + edit) =====
-function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onClose }) {
+function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onDelete, onClose }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
   const [editLabels, setEditLabels] = useState(task.labels || [])
@@ -354,7 +363,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
 
   if (editing) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
           <h2>태스크 편집</h2>
           <div className="modal-field">
@@ -402,22 +411,24 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
             </div>
           </div>
           <div className="modal-field">
-            <label>선행 조건</label>
-            <div className="dep-picker">
-              {allTasks.filter(t => t.id !== task.id).map(t => (
-                <div
-                  key={t.id}
-                  className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}`}
-                  onClick={() => setEditDeps(prev =>
-                    prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
-                  )}
-                >
-                  <span className="dep-check">{editDeps.includes(t.id) ? '\u2713' : ''}</span>
-                  <span className="dep-title">{t.title}</span>
-                  <span className="dep-col">{t._column}</span>
-                </div>
-              ))}
-            </div>
+            <details>
+              <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {editDeps.length > 0 && `(${editDeps.length}개 선택)`}</summary>
+              <div className="dep-picker" style={{ marginTop: 8 }}>
+                {allTasks.filter(t => t.id !== task.id).map(t => (
+                  <div
+                    key={t.id}
+                    className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}`}
+                    onClick={() => setEditDeps(prev =>
+                      prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
+                    )}
+                  >
+                    <span className="dep-check">{editDeps.includes(t.id) ? '\u2713' : ''}</span>
+                    <span className="dep-title">{t.title}</span>
+                    <span className="dep-col">{t._column}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
           </div>
           <div className="modal-field">
             <label>내용 (마크다운)</label>
@@ -442,22 +453,28 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         <h2>{task.title}</h2>
         <div className="card-meta" style={{ marginBottom: 16 }}>
           {task.id && (
-            <span className="card-label" style={{ background: '#374151', color: '#9CA3AF', fontFamily: 'monospace', fontSize: 11 }}>
+            <span className="task-id-badge">
               {task.id}
             </span>
           )}
-          {(task.labels || []).map(lid => {
-            const label = labelMap[lid]
-            return label ? (
-              <span key={lid} className="card-label" style={{ background: label.color }}>
-                {label.name}
-              </span>
-            ) : null
-          })}
-          {prio && (
+          {(task.labels || []).length > 0 ? (
+            (task.labels || []).map(lid => {
+              const label = labelMap[lid]
+              return label ? (
+                <span key={lid} className="card-label" style={{ background: label.color }}>
+                  {label.name}
+                </span>
+              ) : null
+            })
+          ) : (
+            <span style={{ fontSize: 11, color: '#555' }}>라벨 없음</span>
+          )}
+          {prio ? (
             <span className="card-priority-badge" style={{ background: prio.color }}>
               {prio.name}
             </span>
+          ) : (
+            <span style={{ fontSize: 11, color: '#555' }}>우선순위 없음</span>
           )}
           {task.created && (
             <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>
@@ -475,6 +492,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         </div>
         <div className="modal-actions">
           <button className="btn" onClick={() => setEditing(true)}>편집</button>
+          <button className="btn btn-danger" onClick={onDelete}>삭제</button>
           <button className="btn" onClick={onClose}>닫기</button>
         </div>
       </div>
@@ -670,24 +688,26 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
           </div>
 
           <div className="modal-field">
-            <label>선행 조건 (클릭하여 선택)</label>
-            {allTasks.length > 0 ? (
-              <div className="dep-picker">
-                {allTasks.map(t => (
-                  <div
-                    key={t.id}
-                    className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}`}
-                    onClick={() => toggleDep(t.id)}
-                  >
-                    <span className="dep-check">{selectedDeps.includes(t.id) ? '\u2713' : ''}</span>
-                    <span className="dep-title">{t.title}</span>
-                    <span className="dep-col">{t._column}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, color: '#666' }}>등록된 태스크가 없습니다</div>
-            )}
+            <details>
+              <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {selectedDeps.length > 0 && `(${selectedDeps.length}개 선택)`}</summary>
+              {allTasks.length > 0 ? (
+                <div className="dep-picker" style={{ marginTop: 8 }}>
+                  {allTasks.map(t => (
+                    <div
+                      key={t.id}
+                      className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}`}
+                      onClick={() => toggleDep(t.id)}
+                    >
+                      <span className="dep-check">{selectedDeps.includes(t.id) ? '\u2713' : ''}</span>
+                      <span className="dep-title">{t.title}</span>
+                      <span className="dep-col">{t._column}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>등록된 태스크가 없습니다</div>
+              )}
+            </details>
           </div>
 
           <div className="modal-field">
