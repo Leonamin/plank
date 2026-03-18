@@ -10,6 +10,15 @@ function App() {
   const [dragState, setDragState] = useState({ taskId: null, from: null })
   const [dragOver, setDragOver] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [toasts, setToasts] = useState([])
+
+  const addToast = (message, undoAction) => {
+    const id = Date.now()
+    setToasts(prev => [{ id, message, undoAction }, ...prev].slice(0, 5))
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000)
+  }
+
+  const dismissToast = (id) => setToasts(prev => prev.filter(t => t.id !== id))
 
   const fetchData = useCallback(async () => {
     const [cfgRes, taskRes] = await Promise.all([
@@ -48,11 +57,21 @@ function App() {
     const { taskId, from } = dragState
     if (!taskId || from === toCol) return
 
-    await fetch(`${API}/tasks/move`, {
+    const res = await fetch(`${API}/tasks/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId, from, to: toCol }),
     })
+    if (res.ok) {
+      addToast(`"${taskId}" → ${toCol}`, async () => {
+        await fetch(`${API}/tasks/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId, from: toCol, to: from }),
+        })
+        fetchData()
+      })
+    }
     fetchData()
   }
 
@@ -175,6 +194,18 @@ function App() {
           onClose={() => setShowCreate(null)}
         />
       )}
+
+      {toasts.length > 0 && (
+        <div className="toast-container">
+          {toasts.map(t => (
+            <div key={t.id} className="toast">
+              <span>{t.message}</span>
+              <button className="toast-undo" onClick={() => { t.undoAction(); dismissToast(t.id) }}>되돌리기</button>
+              <button className="toast-dismiss" onClick={() => dismissToast(t.id)}>&times;</button>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -247,8 +278,8 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
 function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
   const [dragging, setDragging] = useState(false)
 
-  const checkTotal = (task.content?.match(/- \[[ x]\]/g) || []).length
-  const checkDone = (task.content?.match(/- \[x\]/g) || []).length
+  const checkTotal = (task.content?.match(/^\s*- \[[ x]\]/gm) || []).length
+  const checkDone = (task.content?.match(/^\s*- \[x\]/gm) || []).length
   const prio = priorityMap[task.priority]
 
   return (
@@ -309,10 +340,10 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
   const toggleCheckline = (lineIndex) => {
     const lines = (task.content || '').split('\n')
     const line = lines[lineIndex]
-    if (line.match(/^- \[x\]:? /)) {
-      lines[lineIndex] = line.replace(/^- \[x\](:? )/, '- [ ]$1')
-    } else if (line.match(/^- \[ \]:? /)) {
-      lines[lineIndex] = line.replace(/^- \[ \](:? )/, '- [x]$1')
+    if (line.match(/^\s*- \[x\]:? /)) {
+      lines[lineIndex] = line.replace(/- \[x\](:? )/, '- [ ]$1')
+    } else if (line.match(/^\s*- \[ \]:? /)) {
+      lines[lineIndex] = line.replace(/- \[ \](:? )/, '- [x]$1')
     }
     onSave({ content: lines.join('\n') }, { keepOpen: true })
   }
@@ -325,19 +356,21 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
       if (line.startsWith('## ')) {
         return <h2 key={i}>{line.slice(3)}</h2>
       }
-      if (line.match(/^- \[x\]:? /)) {
-        const text = line.replace(/^- \[x\]:? /, '')
+      if (line.match(/^\s*- \[x\]:? /)) {
+        const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
+        const text = line.replace(/^\s*- \[x\]:? /, '')
         return (
-          <div key={i} className="checklist-item clickable" onClick={() => toggleCheckline(i)}>
+          <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box checked" />
             <span style={{ textDecoration: 'line-through', color: '#666' }}>{text}</span>
           </div>
         )
       }
-      if (line.match(/^- \[ \]:? /)) {
-        const text = line.replace(/^- \[ \]:? /, '')
+      if (line.match(/^\s*- \[ \]:? /)) {
+        const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
+        const text = line.replace(/^\s*- \[ \]:? /, '')
         return (
-          <div key={i} className="checklist-item clickable" onClick={() => toggleCheckline(i)}>
+          <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box" />
             <span>{text}</span>
           </div>
