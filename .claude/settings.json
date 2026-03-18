@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/plank-status.sh",
+            "statusMessage": "Plank 태스크 확인 중..."
+          }
+        ]
+      }
+    ]
+  }
+}
