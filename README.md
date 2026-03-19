@@ -77,7 +77,14 @@ plank/
 npx plank-board
 ```
 
-`http://localhost:4567`에서 보드가 열립니다. `.tasks/` 디렉토리가 자동 생성됩니다.
+`http://localhost:4567`에서 보드가 열립니다.
+
+첫 실행 시 자동으로 생성되는 파일:
+- `.tasks/` — 태스크 저장소 (컬럼 폴더 + config.yml)
+- `.claude/` — AI CLI 연동 (hook, skill, settings)
+- `CLAUDE.md` — AI 행동 규칙
+
+이미 존재하는 파일은 덮어쓰지 않으므로 커스텀 설정이 보호됩니다.
 
 ```bash
 # 포트 변경
