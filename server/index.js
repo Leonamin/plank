@@ -58,7 +58,7 @@ async function bootstrap() {
   }
 
   // Create docs type folders
-  const docTypes = ['global', 'api', 'schema', 'flows', 'issues']
+  const docTypes = ['global', 'epics', 'api', 'schema', 'flows', 'issues']
   for (const dt of docTypes) {
     await fs.mkdir(path.join(DOCS_DIR, dt), { recursive: true })
   }

@@ -16,6 +16,7 @@ function App() {
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [docEditing, setDocEditing] = useState(false)
   const [expandedZones, setExpandedZones] = useState({ closed: false, hold: false })
+  const [activeFilters, setActiveFilters] = useState([])
 
   const addToast = (message, undoAction) => {
     const id = Date.now()
@@ -164,12 +165,27 @@ function App() {
       </header>
 
       {activeView === 'board' ? (
+        <>
+        <EpicBar
+          labels={config.labels || []}
+          allTasks={allTasks}
+          activeFilters={activeFilters}
+          onToggleFilter={(id) => setActiveFilters(prev =>
+            prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+          )}
+          onClearFilters={() => setActiveFilters([])}
+        />
         <div className="board">
-          {columns.map(col => (
+          {columns.map(col => {
+            const colTasks = tasks[col.id] || []
+            const filtered = activeFilters.length > 0
+              ? colTasks.filter(t => (t.labels || []).some(l => activeFilters.includes(l)))
+              : colTasks
+            return (
             <Column
               key={col.id}
               column={col}
-              tasks={tasks[col.id] || []}
+              tasks={filtered}
               labelMap={labelMap}
               priorityMap={priorityMap}
               dragOver={dragOver}
@@ -184,8 +200,10 @@ function App() {
               setExpandedZones={setExpandedZones}
               setDragOver={setDragOver}
             />
-          ))}
+            )
+          })}
         </div>
+        </>
       ) : (
         <DocsView
           tree={docsTree}
@@ -1044,9 +1062,54 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
   )
 }
 
+// ===== Epic Bar (label filter + progress) =====
+function EpicBar({ labels, allTasks, activeFilters, onToggleFilter, onClearFilters }) {
+  if (!labels.length) return null
+
+  const stats = labels.map(l => {
+    const tagged = allTasks.filter(t => (t.labels || []).includes(l.id))
+    const done = tagged.filter(t => t._column === 'done')
+    return { ...l, total: tagged.length, done: done.length }
+  }).filter(s => s.total > 0)
+
+  if (!stats.length) return null
+
+  return (
+    <div className="epic-bar">
+      <div className="epic-chips">
+        {stats.map(s => {
+          const active = activeFilters.includes(s.id)
+          const pct = Math.round((s.done / s.total) * 100)
+          return (
+            <button
+              key={s.id}
+              className={`epic-chip${active ? ' active' : ''}`}
+              style={{ '--epic-color': s.color }}
+              onClick={() => onToggleFilter(s.id)}
+            >
+              <span className="epic-chip-color" style={{ background: s.color }} />
+              <span className="epic-chip-name">{s.name}</span>
+              <span className="epic-chip-count">{s.done}/{s.total}</span>
+              <span className="epic-chip-bar">
+                <span className="epic-chip-fill" style={{ width: `${pct}%`, background: s.color }} />
+              </span>
+            </button>
+          )
+        })}
+        {activeFilters.length > 0 && (
+          <button className="epic-chip epic-chip-clear" onClick={onClearFilters}>
+            전체 보기
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ===== Docs View =====
 const DOC_TYPES = [
   { id: 'global', label: '글로벌', icon: '🌐' },
+  { id: 'epics', label: '에픽', icon: '🎯' },
   { id: 'api', label: 'API', icon: '📡' },
   { id: 'schema', label: '스키마', icon: '🗂️' },
   { id: 'flows', label: '플로우', icon: '🔄' },
@@ -1137,7 +1200,10 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                 if (newDocName.trim()) {
                   const name = newDocName.trim().replace(/\.md$/, '')
                   const p = `${newDocType}/${name}.md`
-                  onCreateDoc(p, { title: name, content: '' })
+                  const defaultContent = newDocType === 'epics'
+                    ? '## 왜 (Why)\n이 에픽을 만드는 이유.\n\n## 결정된 것\n- YYYY-MM-DD: 결정 내용\n\n## 아직 안 정한 것\n- 미결 사항\n\n## 태스크 목록\n- [ ] 태스크 1\n\n## 떠오른 생각\n- 메모'
+                    : ''
+                  onCreateDoc(p, { title: name, content: defaultContent })
                   setNewDocName('')
                   setShowCreateForm(false)
                 }

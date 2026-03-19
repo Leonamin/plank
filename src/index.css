@@ -868,5 +868,80 @@ body {
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 .empty-state { padding: 40px; color: #666; text-align: center; }
 
+/* ===== Epic bar (label filter + progress) ===== */
+.epic-bar {
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.epic-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.epic-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.epic-chip:hover {
+  border-color: var(--epic-color, #444);
+  background: var(--surface-hover);
+}
+
+.epic-chip.active {
+  border-color: var(--epic-color, var(--accent));
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 0 1px var(--epic-color, var(--accent));
+}
+
+.epic-chip-clear {
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.epic-chip-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.epic-chip-name {
+  font-weight: 600;
+}
+
+.epic-chip-count {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.epic-chip-bar {
+  width: 40px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.epic-chip-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
 /* ===== Docs content body ===== */
 .docs-content-body { padding: 16px; }
