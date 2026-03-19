@@ -10,7 +10,7 @@
     "bin/",
     "server/",
     "dist/",
-    "CLAUDE.md",
+    "templates/",
     ".claude/",
     "README.md"
   ],

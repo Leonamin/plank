@@ -100,7 +100,7 @@ function initPlankFiles() {
   }
 
   // 2. Merge CLAUDE.md (append/update Plank section)
-  const claudeSrc = path.join(pkgRoot, 'CLAUDE.md')
+  const claudeSrc = path.join(pkgRoot, 'templates', 'CLAUDE.md')
   const claudeDest = path.join(cwd, 'CLAUDE.md')
   if (fs.existsSync(claudeSrc)) {
     const result = mergeSection(claudeDest, claudeSrc)

@@ -1,24 +1,18 @@
-# Plank — AI Integration Rules
+# Plank Integration
 
-This is the Plank project (markdown-based kanban board). Tasks are stored in `.tasks/`.
+This project uses [Plank](https://github.com/Leonamin/plank) for task management. Tasks are stored as markdown files in `.tasks/`.
 
-## Plank Principles
-
-When adding features or changing design, always check the **Plank Principles** in `README.md`. Reject changes that violate them.
-
-## Plank Integration
-
-### Before Starting Work
+## Before Starting Work
 - Read `.tasks/` to understand current progress. Check `in-progress/` and `todo/` for related tasks.
 - If a related task exists, follow its checklist and dependencies.
 - If none exists, create a task with a checklist (`- [ ]`) before starting.
 
-### During / After Work
+## During / After Work
 - Update checklist items (`- [ ]` → `- [x]`) without asking. Add a brief result summary.
 - When all items are done, ask the user to move the task to `done`.
 - Suggest new tasks for any TODOs discovered during work.
 
-### Task File Rules
+## Task File Rules
 - Path: `.tasks/{column}/{id}.md` — move files between directories to change columns.
 - Moving to `done`: create a weekly subfolder (e.g., `.tasks/done/2026-W12/`).
 - Frontmatter: `id`, `title`, `labels`, `priority`, `created`, `depends_on`.
