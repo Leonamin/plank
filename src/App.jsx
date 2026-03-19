@@ -1015,10 +1015,20 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
 }
 
 // ===== Docs View =====
+const DOC_TYPES = [
+  { id: 'global', label: '글로벌', icon: '🌐' },
+  { id: 'api', label: 'API', icon: '📡' },
+  { id: 'schema', label: '스키마', icon: '🗂️' },
+  { id: 'flows', label: '플로우', icon: '🔄' },
+  { id: 'issues', label: '이슈', icon: '⚠️' },
+]
+
 function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpdateDoc, onDeleteDoc, onEdit, onCancelEdit, onRefresh }) {
+  const [expandedSections, setExpandedSections] = useState(() => Object.fromEntries(DOC_TYPES.map(t => [t.id, true])))
   const [expandedDirs, setExpandedDirs] = useState({})
   const [showCreateForm, setShowCreateForm] = useState(false)
-  const [newDocPath, setNewDocPath] = useState('')
+  const [newDocName, setNewDocName] = useState('')
+  const [newDocType, setNewDocType] = useState('global')
   const [editContent, setEditContent] = useState('')
   const [editTitle, setEditTitle] = useState('')
 
@@ -1029,17 +1039,17 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
     }
   }, [editing, selectedDoc])
 
-  const toggleDir = (dirPath) => {
-    setExpandedDirs(prev => ({ ...prev, [dirPath]: !prev[dirPath] }))
-  }
+  const toggleSection = (id) => setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }))
+  const toggleDir = (dirPath) => setExpandedDirs(prev => ({ ...prev, [dirPath]: !prev[dirPath] }))
 
-  const renderTree = (nodes, depth = 0) => {
+  // Render sub-tree inside a type section (skips the type folder itself)
+  const renderSubTree = (nodes, depth = 0) => {
     if (!nodes) return null
     return nodes.map(node => (
       <div key={node.path}>
         <div
           className={`docs-tree-item${node.type === 'dir' ? ' docs-tree-folder' : ''}${selectedDoc?.path === node.path ? ' active' : ''}`}
-          style={{ paddingLeft: 12 + depth * 16 }}
+          style={{ paddingLeft: 16 + depth * 16 }}
           onClick={() => {
             if (node.type === 'dir') toggleDir(node.path)
             else onSelectDoc(node.path)
@@ -1048,10 +1058,18 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
           <span className="docs-tree-icon">{node.type === 'dir' ? (expandedDirs[node.path] ? '▾' : '▸') : '─'}</span>
           <span>{node.name}</span>
         </div>
-        {node.type === 'dir' && expandedDirs[node.path] && node.children && renderTree(node.children, depth + 1)}
+        {node.type === 'dir' && expandedDirs[node.path] && node.children && renderSubTree(node.children, depth + 1)}
       </div>
     ))
   }
+
+  // Group tree children by doc type folders
+  const typeSections = DOC_TYPES.map(dt => {
+    const folder = tree?.children?.find(n => n.type === 'dir' && n.name === dt.id)
+    return { ...dt, children: folder?.children || [] }
+  })
+  // Uncategorized files (at docs root, not in type folders)
+  const uncategorized = tree?.children?.filter(n => !DOC_TYPES.some(dt => dt.id === n.name)) || []
 
   const breadcrumb = selectedDoc?.path?.split('/') || []
 
@@ -1064,28 +1082,63 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
         </div>
         {showCreateForm && (
           <div style={{ padding: '4px 12px 8px' }}>
+            <div className="picker-group" style={{ marginBottom: 6 }}>
+              {DOC_TYPES.map(dt => (
+                <span
+                  key={dt.id}
+                  className={`picker-chip${newDocType === dt.id ? ' active' : ''}`}
+                  style={{ background: newDocType === dt.id ? '#374151' : 'transparent', borderColor: '#374151', color: newDocType === dt.id ? 'white' : '#9CA3AF', fontSize: 11, padding: '2px 6px' }}
+                  onClick={() => setNewDocType(dt.id)}
+                >{dt.icon} {dt.label}</span>
+              ))}
+            </div>
             <input
-              value={newDocPath}
-              onChange={e => setNewDocPath(e.target.value)}
-              placeholder="경로 (예: global/rules.md)"
+              value={newDocName}
+              onChange={e => setNewDocName(e.target.value)}
+              placeholder="파일명 (예: booking-api)"
               style={{ width: '100%', marginBottom: 4, fontSize: 12 }}
               autoFocus
             />
+            <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>→ {newDocType}/{newDocName || '...'}.md</div>
             <div style={{ display: 'flex', gap: 4 }}>
               <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => {
-                if (newDocPath.trim()) {
-                  const p = newDocPath.trim().endsWith('.md') ? newDocPath.trim() : newDocPath.trim() + '.md'
-                  onCreateDoc(p, { title: p.split('/').pop().replace('.md', ''), content: '' })
-                  setNewDocPath('')
+                if (newDocName.trim()) {
+                  const name = newDocName.trim().replace(/\.md$/, '')
+                  const p = `${newDocType}/${name}.md`
+                  onCreateDoc(p, { title: name, content: '' })
+                  setNewDocName('')
                   setShowCreateForm(false)
                 }
               }}>생성</button>
-              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => { setShowCreateForm(false); setNewDocPath('') }}>취소</button>
+              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => { setShowCreateForm(false); setNewDocName('') }}>취소</button>
             </div>
           </div>
         )}
         <div className="docs-tree">
-          {tree ? renderTree(tree.children) : <div style={{ padding: 12, color: '#666', fontSize: 12 }}>로딩 중...</div>}
+          {tree ? (
+            <>
+              {typeSections.map(sec => (
+                <div key={sec.id} className="docs-section">
+                  <div className="docs-section-header" onClick={() => toggleSection(sec.id)}>
+                    <span>{sec.icon} {sec.label}</span>
+                    <span className="docs-section-count">{sec.children.length}</span>
+                  </div>
+                  {expandedSections[sec.id] && sec.children.length > 0 && renderSubTree(sec.children)}
+                  {expandedSections[sec.id] && sec.children.length === 0 && (
+                    <div style={{ padding: '2px 16px', fontSize: 11, color: '#555' }}>비어있음</div>
+                  )}
+                </div>
+              ))}
+              {uncategorized.length > 0 && (
+                <div className="docs-section">
+                  <div className="docs-section-header">📄 기타</div>
+                  {renderSubTree(uncategorized)}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ padding: 12, color: '#666', fontSize: 12 }}>로딩 중...</div>
+          )}
         </div>
       </div>
       <div className="docs-content">

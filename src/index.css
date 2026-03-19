@@ -736,6 +736,38 @@ body {
   overflow-y: auto;
 }
 
+.docs-section {
+  margin-bottom: 2px;
+}
+
+.docs-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #D1D5DB;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid rgba(55, 65, 81, 0.3);
+}
+
+.docs-section-header:hover {
+  background: var(--surface-hover);
+}
+
+.docs-section-count {
+  background: #374151;
+  border-radius: 10px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: #9CA3AF;
+  min-width: 18px;
+  text-align: center;
+}
+
 .docs-breadcrumb {
   display: flex;
   align-items: center;
