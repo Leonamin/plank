@@ -16,6 +16,7 @@ function App() {
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [docEditing, setDocEditing] = useState(false)
   const [expandedZones, setExpandedZones] = useState({ closed: false, hold: false })
+  const [activeFilters, setActiveFilters] = useState([])
 
   const addToast = (message, undoAction) => {
     const id = Date.now()
@@ -164,12 +165,26 @@ function App() {
       </header>
 
       {activeView === 'board' ? (
+        <>
+        <LabelFilterBar
+          labels={config.labels || []}
+          activeFilters={activeFilters}
+          onToggleFilter={(id) => setActiveFilters(prev =>
+            prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+          )}
+          onClearFilters={() => setActiveFilters([])}
+        />
         <div className="board">
-          {columns.map(col => (
+          {columns.map(col => {
+            const colTasks = tasks[col.id] || []
+            const filtered = activeFilters.length > 0
+              ? colTasks.filter(t => (t.labels || []).some(l => activeFilters.includes(l)))
+              : colTasks
+            return (
             <Column
               key={col.id}
               column={col}
-              tasks={tasks[col.id] || []}
+              tasks={filtered}
               labelMap={labelMap}
               priorityMap={priorityMap}
               dragOver={dragOver}
@@ -184,8 +199,10 @@ function App() {
               setExpandedZones={setExpandedZones}
               setDragOver={setDragOver}
             />
-          ))}
+            )
+          })}
         </div>
+        </>
       ) : (
         <DocsView
           tree={docsTree}
@@ -1044,9 +1061,41 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
   )
 }
 
+// ===== Label Filter Bar =====
+function LabelFilterBar({ labels, activeFilters, onToggleFilter, onClearFilters }) {
+  if (!labels.length) return null
+
+  return (
+    <div className="epic-bar">
+      <div className="epic-chips">
+        {labels.map(l => {
+          const active = activeFilters.includes(l.id)
+          return (
+            <button
+              key={l.id}
+              className={`epic-chip${active ? ' active' : ''}`}
+              style={{ '--epic-color': l.color }}
+              onClick={() => onToggleFilter(l.id)}
+            >
+              <span className="epic-chip-color" style={{ background: l.color }} />
+              <span className="epic-chip-name">{l.name}</span>
+            </button>
+          )
+        })}
+        {activeFilters.length > 0 && (
+          <button className="epic-chip epic-chip-clear" onClick={onClearFilters}>
+            전체 보기
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ===== Docs View =====
 const DOC_TYPES = [
   { id: 'global', label: '글로벌', icon: '🌐' },
+  { id: 'epics', label: '에픽', icon: '🎯' },
   { id: 'api', label: 'API', icon: '📡' },
   { id: 'schema', label: '스키마', icon: '🗂️' },
   { id: 'flows', label: '플로우', icon: '🔄' },
@@ -1137,7 +1186,10 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                 if (newDocName.trim()) {
                   const name = newDocName.trim().replace(/\.md$/, '')
                   const p = `${newDocType}/${name}.md`
-                  onCreateDoc(p, { title: name, content: '' })
+                  const defaultContent = newDocType === 'epics'
+                    ? '## 왜 (Why)\n이 에픽을 만드는 이유.\n\n## 결정된 것\n- YYYY-MM-DD: 결정 내용\n\n## 아직 안 정한 것\n- 미결 사항\n\n## 태스크 목록\n- [ ] 태스크 1\n\n## 떠오른 생각\n- 메모'
+                    : ''
+                  onCreateDoc(p, { title: name, content: defaultContent })
                   setNewDocName('')
                   setShowCreateForm(false)
                 }
