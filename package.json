@@ -4,7 +4,7 @@
   "description": "마크다운 기반 칸반 보드 태스크 관리 도구 — AI CLI 연동 지원",
   "type": "module",
   "bin": {
-    "plank": "./bin/plank.js"
+    "plank-board": "bin/plank.js"
   },
   "files": [
     "bin/",
