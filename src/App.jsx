@@ -142,13 +142,17 @@ function App() {
 
   // --- Save config ---
   const handleSaveConfig = async (newConfig) => {
-    await fetch(`${API}/config`, {
+    const res = await fetch(`${API}/config`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newConfig),
     })
+    if (!res.ok) {
+      alert('설정 저장 실패')
+      return
+    }
     setShowSettings(false)
-    fetchData()
+    await fetchData()
   }
 
   return (
@@ -357,6 +361,8 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
             />
           ))
         )}
+      </div>
+      <div className="column-footer">
         <button className="btn-add" onClick={onAddClick}>+ 태스크 추가</button>
       </div>
       {isDone && (
@@ -482,37 +488,65 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
   const renderContent = (content) => {
     if (!content) return <p style={{ color: '#666' }}>내용 없음</p>
     const lines = content.split('\n')
+    const elements = []
+    let i = 0
 
-    return lines.map((line, i) => {
-      if (line.startsWith('## ')) {
-        return <h2 key={i}>{line.slice(3)}</h2>
+    while (i < lines.length) {
+      const line = lines[i]
+
+      // Table: collect consecutive | lines
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        const tableLines = []
+        while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+          tableLines.push(lines[i])
+          i++
+        }
+        const parseRow = (row) => row.split('|').slice(1, -1).map(c => c.trim())
+        const headers = parseRow(tableLines[0])
+        const isSep = (row) => /^\|[\s\-:|]+\|$/.test(row.trim())
+        const bodyStart = tableLines.length > 1 && isSep(tableLines[1]) ? 2 : 1
+        const bodyRows = tableLines.slice(bodyStart).map(parseRow)
+        elements.push(
+          <table key={`t${i}`} className="md-table">
+            <thead><tr>{headers.map((h, j) => <th key={j}>{h}</th>)}</tr></thead>
+            <tbody>{bodyRows.map((row, ri) => (
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+            ))}</tbody>
+          </table>
+        )
+        continue
       }
-      if (line.match(/^\s*- \[x\]:? /)) {
+
+      if (line.startsWith('## ')) {
+        elements.push(<h2 key={i}>{line.slice(3)}</h2>)
+      } else if (line.match(/^\s*- \[x\]:? /)) {
         const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
         const text = line.replace(/^\s*- \[x\]:? /, '')
-        return (
+        elements.push(
           <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box checked" />
             <span style={{ textDecoration: 'line-through', color: '#666' }}>{text}</span>
           </div>
         )
-      }
-      if (line.match(/^\s*- \[ \]:? /)) {
+      } else if (line.match(/^\s*- \[ \]:? /)) {
         const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
         const text = line.replace(/^\s*- \[ \]:? /, '')
-        return (
+        elements.push(
           <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box" />
             <span>{text}</span>
           </div>
         )
+      } else if (line.startsWith('- ')) {
+        elements.push(<div key={i} style={{ paddingLeft: 12 }}>{line}</div>)
+      } else if (line.trim() === '') {
+        elements.push(<br key={i} />)
+      } else {
+        elements.push(<div key={i}>{line}</div>)
       }
-      if (line.startsWith('- ')) {
-        return <div key={i} style={{ paddingLeft: 12 }}>{line}</div>
-      }
-      if (line.trim() === '') return <br key={i} />
-      return <div key={i}>{line}</div>
-    })
+      i++
+    }
+    return elements
   }
 
   const handleSave = () => {
@@ -1092,6 +1126,43 @@ function LabelFilterBar({ labels, activeFilters, onToggleFilter, onClearFilters 
   )
 }
 
+// ===== Shared markdown rendering =====
+function renderMarkdownLines(lines) {
+  const elements = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      const tableLines = []
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableLines.push(lines[i])
+        i++
+      }
+      const parseRow = (row) => row.split('|').slice(1, -1).map(c => c.trim())
+      const headers = parseRow(tableLines[0])
+      const isSep = (row) => /^\|[\s\-:|]+\|$/.test(row.trim())
+      const bodyStart = tableLines.length > 1 && isSep(tableLines[1]) ? 2 : 1
+      const bodyRows = tableLines.slice(bodyStart).map(parseRow)
+      elements.push(
+        <table key={`t${i}`} className="md-table">
+          <thead><tr>{headers.map((h, j) => <th key={j}>{h}</th>)}</tr></thead>
+          <tbody>{bodyRows.map((row, ri) => (
+            <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+          ))}</tbody>
+        </table>
+      )
+      continue
+    }
+    if (line.startsWith('## ')) elements.push(<h2 key={i}>{line.slice(3)}</h2>)
+    else if (line.startsWith('# ')) elements.push(<h1 key={i}>{line.slice(2)}</h1>)
+    else if (line.startsWith('- ')) elements.push(<div key={i} style={{ paddingLeft: 12 }}>{line}</div>)
+    else if (line.trim() === '') elements.push(<br key={i} />)
+    else elements.push(<div key={i}>{line}</div>)
+    i++
+  }
+  return elements
+}
+
 // ===== Docs View =====
 const DOC_TYPES = [
   { id: 'global', label: '글로벌', icon: '🌐' },
@@ -1262,13 +1333,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
               <div className="docs-content-body">
                 {selectedDoc.data?.title && <h2>{selectedDoc.data.title}</h2>}
                 <div className="task-detail-content">
-                  {selectedDoc.content ? selectedDoc.content.split('\n').map((line, i) => {
-                    if (line.startsWith('## ')) return <h2 key={i}>{line.slice(3)}</h2>
-                    if (line.startsWith('# ')) return <h1 key={i}>{line.slice(2)}</h1>
-                    if (line.startsWith('- ')) return <div key={i} style={{ paddingLeft: 12 }}>{line}</div>
-                    if (line.trim() === '') return <br key={i} />
-                    return <div key={i}>{line}</div>
-                  }) : <p className="text-muted">내용 없음</p>}
+                  {selectedDoc.content ? renderMarkdownLines(selectedDoc.content.split('\n')) : <p className="text-muted">내용 없음</p>}
                 </div>
               </div>
             )}

@@ -110,6 +110,12 @@ body {
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
+.column-footer {
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 /* ===== Card ===== */
 .card {
   background: var(--bg);
@@ -921,6 +927,34 @@ body {
 
 .epic-chip-name {
   font-weight: 600;
+}
+
+/* ===== Markdown table ===== */
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.md-table th,
+.md-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.md-table th {
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.md-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* ===== Docs content body ===== */
