@@ -68,7 +68,7 @@ function App() {
     e.preventDefault()
     setDragOver(null)
     const { taskId, from } = dragState
-    if (!taskId || from === toCol) return
+    if (!taskId || (from === toCol && !status)) return
 
     const body = { taskId, from, to: toCol }
     if (status) body.status = status
@@ -707,24 +707,49 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
 
 // ===== Settings Modal =====
 function SettingsModal({ config, onSave, onClose }) {
-  const [labels, setLabels] = useState(config.labels || [])
-  const [priorities, setPriorities] = useState(config.priorities || [])
+  const initLabels = config.labels || []
+  const initPriorities = config.priorities || []
+  const [labels, setLabels] = useState(initLabels)
+  const [priorities, setPriorities] = useState(initPriorities)
+  const [history, setHistory] = useState([])
+
+  const pushHistory = () => {
+    setHistory(prev => [...prev, { labels: JSON.parse(JSON.stringify(labels)), priorities: JSON.parse(JSON.stringify(priorities)) }])
+  }
 
   const updateLabel = (index, field, value) => {
+    pushHistory()
     setLabels(prev => prev.map((l, i) => i === index ? { ...l, [field]: value } : l))
   }
 
   const removeLabel = (index) => {
+    pushHistory()
     setLabels(prev => prev.filter((_, i) => i !== index))
   }
 
   const addLabel = () => {
+    pushHistory()
     const id = `label-${Date.now()}`
     setLabels(prev => [...prev, { id, name: '', color: '#6B7280' }])
   }
 
   const updatePriority = (index, field, value) => {
+    pushHistory()
     setPriorities(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p))
+  }
+
+  const undo = () => {
+    if (history.length === 0) return
+    const prev = history[history.length - 1]
+    setLabels(prev.labels)
+    setPriorities(prev.priorities)
+    setHistory(h => h.slice(0, -1))
+  }
+
+  const resetAll = () => {
+    pushHistory()
+    setLabels(initLabels)
+    setPriorities(initPriorities)
   }
 
   const handleSave = () => {
@@ -741,12 +766,12 @@ function SettingsModal({ config, onSave, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, overflow: 'hidden' }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, overflow: 'hidden' }}>
         <h2>보드 설정</h2>
 
         <div className="modal-field">
           <label>라벨</label>
-          <div className="settings-list">
+          <div className="settings-list" style={{ padding: '0 4px' }}>
             {labels.map((l, i) => (
               <div key={i} className="settings-row">
                 <input
@@ -761,6 +786,7 @@ function SettingsModal({ config, onSave, onClose }) {
                   placeholder="라벨 이름"
                   className="settings-name-input"
                 />
+                {l.name && <span className="card-label" style={{ background: l.color }}>{l.name}</span>}
                 <button className="btn-icon" onClick={() => removeLabel(i)} title="삭제">&times;</button>
               </div>
             ))}
@@ -785,6 +811,7 @@ function SettingsModal({ config, onSave, onClose }) {
                   onChange={e => updatePriority(i, 'name', e.target.value)}
                   className="settings-name-input"
                 />
+                {p.name && <span className="card-priority-badge" style={{ background: p.color, marginLeft: 0 }}>{p.name}</span>}
               </div>
             ))}
           </div>
@@ -794,6 +821,9 @@ function SettingsModal({ config, onSave, onClose }) {
         </div>
 
         <div className="modal-actions">
+          <button className="btn" onClick={resetAll} disabled={JSON.stringify(labels) === JSON.stringify(initLabels) && JSON.stringify(priorities) === JSON.stringify(initPriorities)}>전체 되돌리기</button>
+          <button className="btn" onClick={undo} disabled={history.length === 0}>되돌리기</button>
+          <div style={{ flex: 1 }} />
           <button className="btn" onClick={onClose}>취소</button>
           <button className="btn btn-primary" onClick={handleSave}>저장</button>
         </div>
@@ -1076,9 +1106,9 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
   return (
     <div className="docs-view">
       <div className="docs-sidebar">
-        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="flex-between" style={{ padding: '8px 12px' }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>문서</span>
-          <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setShowCreateForm(true)}>+ 새 문서</button>
+          <button className="btn btn-sm" onClick={() => setShowCreateForm(true)}>+ 새 문서</button>
         </div>
         {showCreateForm && (
           <div style={{ padding: '4px 12px 8px' }}>
@@ -1092,16 +1122,18 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                 >{dt.icon} {dt.label}</span>
               ))}
             </div>
-            <input
-              value={newDocName}
-              onChange={e => setNewDocName(e.target.value)}
-              placeholder="파일명 (예: booking-api)"
-              style={{ width: '100%', marginBottom: 4, fontSize: 12 }}
-              autoFocus
-            />
-            <div style={{ fontSize: 10, color: '#666', marginBottom: 4 }}>→ {newDocType}/{newDocName || '...'}.md</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => {
+            <div className="modal-field" style={{ marginBottom: 4 }}>
+              <input
+                value={newDocName}
+                onChange={e => setNewDocName(e.target.value)}
+                placeholder="파일명 (예: booking-api)"
+                style={{ fontSize: 12 }}
+                autoFocus
+              />
+            </div>
+            <div className="text-hint" style={{ marginBottom: 4 }}>→ {newDocType}/{newDocName || '...'}.md</div>
+            <div className="flex-row" style={{ gap: 4 }}>
+              <button className="btn btn-sm" onClick={() => {
                 if (newDocName.trim()) {
                   const name = newDocName.trim().replace(/\.md$/, '')
                   const p = `${newDocType}/${name}.md`
@@ -1110,7 +1142,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                   setShowCreateForm(false)
                 }
               }}>생성</button>
-              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => { setShowCreateForm(false); setNewDocName('') }}>취소</button>
+              <button className="btn btn-sm" onClick={() => { setShowCreateForm(false); setNewDocName('') }}>취소</button>
             </div>
           </div>
         )}
@@ -1125,7 +1157,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                   </div>
                   {expandedSections[sec.id] && sec.children.length > 0 && renderSubTree(sec.children)}
                   {expandedSections[sec.id] && sec.children.length === 0 && (
-                    <div style={{ padding: '2px 16px', fontSize: 11, color: '#555' }}>비어있음</div>
+                    <div className="text-hint" style={{ padding: '2px 16px' }}>비어있음</div>
                   )}
                 </div>
               ))}
@@ -1137,7 +1169,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
               )}
             </>
           ) : (
-            <div style={{ padding: 12, color: '#666', fontSize: 12 }}>로딩 중...</div>
+            <div className="text-muted" style={{ padding: 12 }}>로딩 중...</div>
           )}
         </div>
       </div>
@@ -1151,13 +1183,13 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                   <span style={{ color: i === breadcrumb.length - 1 ? '#E5E7EB' : '#888' }}>{seg}</span>
                 </span>
               ))}
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                {!editing && <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={onEdit}>편집</button>}
-                <button className="btn btn-danger" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => onDeleteDoc(selectedDoc.path)}>삭제</button>
+              <div style={{ marginLeft: 'auto' }} className="flex-row">
+                {!editing && <button className="btn btn-sm" onClick={onEdit}>편집</button>}
+                <button className="btn btn-danger btn-sm" onClick={() => onDeleteDoc(selectedDoc.path)}>삭제</button>
               </div>
             </div>
             {editing ? (
-              <div style={{ padding: 16 }}>
+              <div className="docs-content-body">
                 <div className="modal-field">
                   <label>제목</label>
                   <input value={editTitle} onChange={e => setEditTitle(e.target.value)} />
@@ -1166,7 +1198,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                   <label>내용</label>
                   <textarea value={editContent} onChange={e => setEditContent(e.target.value)} style={{ minHeight: 300 }} />
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <div className="modal-actions" style={{ marginTop: 12 }}>
                   <button className="btn btn-primary" onClick={() => {
                     onUpdateDoc(selectedDoc.path, { title: editTitle, content: editContent })
                     onCancelEdit()
@@ -1175,7 +1207,7 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                 </div>
               </div>
             ) : (
-              <div style={{ padding: 16 }}>
+              <div className="docs-content-body">
                 {selectedDoc.data?.title && <h2>{selectedDoc.data.title}</h2>}
                 <div className="task-detail-content">
                   {selectedDoc.content ? selectedDoc.content.split('\n').map((line, i) => {
@@ -1184,15 +1216,15 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                     if (line.startsWith('- ')) return <div key={i} style={{ paddingLeft: 12 }}>{line}</div>
                     if (line.trim() === '') return <br key={i} />
                     return <div key={i}>{line}</div>
-                  }) : <p style={{ color: '#666' }}>내용 없음</p>}
+                  }) : <p className="text-muted">내용 없음</p>}
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div style={{ padding: 40, color: '#666', textAlign: 'center' }}>
+          <div className="empty-state">
             <p>왼쪽 파일 트리에서 문서를 선택하세요</p>
-            <p style={{ fontSize: 12, marginTop: 8 }}>또는 "새 문서" 버튼으로 문서를 생성하세요</p>
+            <p className="text-muted" style={{ marginTop: 8 }}>또는 "새 문서" 버튼으로 문서를 생성하세요</p>
           </div>
         )}
       </div>
