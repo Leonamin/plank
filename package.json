@@ -1,6 +1,6 @@
 {
   "name": "plank-board",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "마크다운 기반 칸반 보드 태스크 관리 도구 — AI CLI 연동 지원",
   "type": "module",
   "bin": {
