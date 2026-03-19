@@ -96,7 +96,14 @@ body {
   flex-direction: column;
   gap: 6px;
   min-height: 60px;
+  scrollbar-width: thin;
+  scrollbar-color: #374151 transparent;
 }
+
+.column-body::-webkit-scrollbar { width: 6px; }
+.column-body::-webkit-scrollbar-track { background: transparent; }
+.column-body::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+.column-body::-webkit-scrollbar-thumb:hover { background: #4B5563; }
 
 .column-body.drag-over {
   background: rgba(59, 130, 246, 0.05);
@@ -751,9 +758,11 @@ body {
 /* Done zones */
 .done-zones {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 0 4px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .done-zone {

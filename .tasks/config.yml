@@ -61,3 +61,23 @@ priorities:
 done_archive:
   enabled: true
   group_by: week  # week | month
+
+templates:
+  - id: feature
+    name: "신규 기능"
+    body: "## 목표\n\n## 구현 항목\n- [ ] \n\n## 참고\n"
+  - id: bugfix
+    name: "버그 수정"
+    body: "## 상황\n\n## 재현 방법\n\n## 예상 원인\n\n## 할 일\n- [ ] \n"
+  - id: improvement
+    name: "기능 개선"
+    body: "## 현재 상태\n\n## 개선 목표\n\n## 할 일\n- [ ] \n"
+  - id: refactor
+    name: "리팩토링"
+    body: "## 대상\n\n## 이유\n\n## 할 일\n- [ ] \n"
+  - id: design
+    name: "디자인"
+    body: "## 목표\n\n## 요구사항\n\n## 할 일\n- [ ] \n"
+  - id: plan
+    name: "기획"
+    body: "## 배경\n\n## 논의할 내용\n- [ ] \n\n## 결론\n"

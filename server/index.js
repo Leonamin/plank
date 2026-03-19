@@ -190,9 +190,17 @@ app.post('/api/tasks/move', async (req, res) => {
 // Create new task
 app.post('/api/tasks', async (req, res) => {
   try {
-    const { column, title, labels, priority, depends_on, refs, body, id: customId } = req.body
+    const { column, title, labels, priority, depends_on, refs, body, id: customId, template_id } = req.body
     const id = customId || slugify(title) || `task-${crypto.randomUUID().slice(0, 8)}`
     const filename = `${id}.md`
+
+    // Resolve body: use template if template_id provided and no body
+    let taskBody = body || ''
+    if (template_id && !body) {
+      const config = await loadConfig()
+      const tmpl = (config.templates || []).find(t => t.id === template_id)
+      if (tmpl) taskBody = tmpl.body
+    }
 
     const frontmatter = {
       id,
@@ -204,7 +212,7 @@ app.post('/api/tasks', async (req, res) => {
     if (depends_on?.length) frontmatter.depends_on = depends_on
     if (refs?.length) frontmatter.refs = refs
 
-    const content = matter.stringify(body || '', frontmatter)
+    const content = matter.stringify(taskBody, frontmatter)
     const colDir = path.join(TASKS_DIR, column || 'backlog')
     await fs.mkdir(colDir, { recursive: true })
     await fs.writeFile(path.join(colDir, filename), content)

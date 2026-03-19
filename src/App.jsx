@@ -253,6 +253,7 @@ function App() {
           column={showCreate}
           labels={config.labels || []}
           priorities={config.priorities || []}
+          templates={config.templates || []}
           allTasks={allTasks}
           onSubmit={handleCreate}
           onClose={() => setShowCreate(null)}
@@ -340,46 +341,46 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
           ))
         )}
         <button className="btn-add" onClick={onAddClick}>+ 태스크 추가</button>
-        {isDone && (
-          <div className="done-zones">
-            {['closed', 'hold'].map(zone => {
-              const zoneTasks = zone === 'closed' ? closedTasks : holdTasks
-              const zoneLabel = zone === 'closed' ? '취소됨' : '보류'
-              const expanded = expandedZones[zone]
-              return (
-                <div
-                  key={zone}
-                  className={`done-zone${dragOver === `done-${zone}` ? ' drag-over' : ''}`}
-                  data-status={zone}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(`done-${zone}`) }}
-                  onDragLeave={() => setDragOver(null)}
-                  onDrop={(e) => onDropWithStatus(e, zone)}
-                >
-                  <div className="done-zone-header" onClick={() => setExpandedZones(prev => ({ ...prev, [zone]: !prev[zone] }))}>
-                    <span>{expanded ? '▾' : '▸'} {zoneLabel}</span>
-                    <span className="done-zone-count">{zoneTasks.length}</span>
-                  </div>
-                  {expanded && (
-                    <div className="done-zone-body">
-                      {zoneTasks.map(task => (
-                        <Card
-                          key={task.id}
-                          task={task}
-                          labelMap={labelMap}
-                          priorityMap={priorityMap}
-                          columnId={column.id}
-                          onDragStart={onDragStart}
-                          onClick={() => onCardClick(task)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
+      {isDone && (
+        <div className="done-zones">
+          {['closed', 'hold'].map(zone => {
+            const zoneTasks = zone === 'closed' ? closedTasks : holdTasks
+            const zoneLabel = zone === 'closed' ? '취소됨' : '보류'
+            const expanded = expandedZones[zone]
+            return (
+              <div
+                key={zone}
+                className={`done-zone${dragOver === `done-${zone}` ? ' drag-over' : ''}`}
+                data-status={zone}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(`done-${zone}`) }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={(e) => onDropWithStatus(e, zone)}
+              >
+                <div className="done-zone-header" onClick={() => setExpandedZones(prev => ({ ...prev, [zone]: !prev[zone] }))}>
+                  <span>{expanded ? '▾' : '▸'} {zoneLabel}</span>
+                  <span className="done-zone-count">{zoneTasks.length}</span>
+                </div>
+                {expanded && (
+                  <div className="done-zone-body">
+                    {zoneTasks.map(task => (
+                      <Card
+                        key={task.id}
+                        task={task}
+                        labelMap={labelMap}
+                        priorityMap={priorityMap}
+                        columnId={column.id}
+                        onDragStart={onDragStart}
+                        onClick={() => onCardClick(task)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -802,7 +803,7 @@ function SettingsModal({ config, onSave, onClose }) {
 }
 
 // ===== Create Task Modal =====
-function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }) {
+function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit, onClose }) {
   const [title, setTitle] = useState('')
   const [selectedLabels, setSelectedLabels] = useState([])
   const [priority, setPriority] = useState('p1')
@@ -810,7 +811,15 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
   const [refs, setRefs] = useState([])
   const [refInput, setRefInput] = useState('')
   const [body, setBody] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState('')
   const [showDoneTasks, setShowDoneTasks] = useState(false)
+
+  const applyTemplate = (templateId) => {
+    setSelectedTemplate(templateId)
+    if (!templateId) { setBody(''); return }
+    const tmpl = templates.find(t => t.id === templateId)
+    if (tmpl) setBody(tmpl.body)
+  }
 
   const toggleLabel = (id) => {
     setSelectedLabels(prev =>
@@ -843,6 +852,39 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
       <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
         <h2>새 태스크</h2>
         <form onSubmit={handleSubmit}>
+          {templates.length > 0 && (
+            <div className="modal-field">
+              <label>템플릿</label>
+              <div className="picker-group">
+                <span
+                  className={`picker-chip${!selectedTemplate ? ' active' : ''}`}
+                  style={{
+                    background: !selectedTemplate ? '#374151' : 'transparent',
+                    borderColor: '#374151',
+                    color: !selectedTemplate ? 'white' : '#9CA3AF',
+                  }}
+                  onClick={() => applyTemplate('')}
+                >
+                  자유 형식
+                </span>
+                {templates.map(t => (
+                  <span
+                    key={t.id}
+                    className={`picker-chip${selectedTemplate === t.id ? ' active' : ''}`}
+                    style={{
+                      background: selectedTemplate === t.id ? '#374151' : 'transparent',
+                      borderColor: '#374151',
+                      color: selectedTemplate === t.id ? 'white' : '#9CA3AF',
+                    }}
+                    onClick={() => applyTemplate(t.id)}
+                  >
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="modal-field">
             <label>제목</label>
             <input
