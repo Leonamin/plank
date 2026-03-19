@@ -20,9 +20,9 @@
     "dev:server": "node server/index.js",
     "build": "vite build",
     "prepublishOnly": "npm run build",
-    "release:patch": "npm version patch && npm publish && git push origin develop --tags",
-    "release:minor": "npm version minor && npm publish && git push origin develop --tags",
-    "release:major": "npm version major && npm publish && git push origin develop --tags"
+    "release:patch": "git checkout main && git merge develop && npm version patch && npm publish && git push origin main --tags && git checkout develop && git merge main && git push origin develop",
+    "release:minor": "git checkout main && git merge develop && npm version minor && npm publish && git push origin main --tags && git checkout develop && git merge main && git push origin develop",
+    "release:major": "git checkout main && git merge develop && npm version major && npm publish && git push origin main --tags && git checkout develop && git merge main && git push origin develop"
   },
   "dependencies": {
     "express": "^4.21.0",
