@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import fs from 'fs/promises'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import matter from 'gray-matter'
 import yaml from 'js-yaml'
 import { watch } from 'chokidar'
@@ -505,7 +506,21 @@ function slugify(str) {
     .replace(/^-|-$/g, '')
 }
 
-const PORT = 4567
+// Production: serve built frontend
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const distDir = path.join(__dirname, '..', 'dist')
+try {
+  const stat = await fs.stat(distDir)
+  if (stat.isDirectory()) {
+    app.use(express.static(distDir))
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next()
+      res.sendFile(path.join(distDir, 'index.html'))
+    })
+  }
+} catch {}
+
+const PORT = process.env.PLANK_PORT || 4567
 app.listen(PORT, () => {
   console.log(`Plank server running on http://localhost:${PORT}`)
 })

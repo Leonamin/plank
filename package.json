@@ -1,13 +1,25 @@
 {
-  "name": "plank",
+  "name": "plank-board",
   "version": "0.1.0",
-  "private": true,
+  "description": "마크다운 기반 칸반 보드 태스크 관리 도구 — AI CLI 연동 지원",
   "type": "module",
+  "bin": {
+    "plank": "./bin/plank.js"
+  },
+  "files": [
+    "bin/",
+    "server/",
+    "dist/",
+    "CLAUDE.md",
+    ".claude/",
+    "README.md"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite",
     "dev:server": "node server/index.js",
-    "build": "vite build"
+    "build": "vite build",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "express": "^4.21.0",

@@ -69,7 +69,22 @@ plank/
 └── package.json
 ```
 
-## 시작하기
+## 빠른 시작 (npx)
+
+프로젝트 디렉토리에서 바로 실행할 수 있습니다:
+
+```bash
+npx plank-board
+```
+
+`http://localhost:4567`에서 보드가 열립니다. `.tasks/` 디렉토리가 자동 생성됩니다.
+
+```bash
+# 포트 변경
+PLANK_PORT=8080 npx plank-board
+```
+
+## 개발 모드
 
 ```bash
 # 설치
