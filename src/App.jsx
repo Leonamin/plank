@@ -11,6 +11,11 @@ function App() {
   const [dragOver, setDragOver] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [toasts, setToasts] = useState([])
+  const [activeView, setActiveView] = useState('board')
+  const [docsTree, setDocsTree] = useState(null)
+  const [selectedDoc, setSelectedDoc] = useState(null)
+  const [docEditing, setDocEditing] = useState(false)
+  const [expandedZones, setExpandedZones] = useState({ closed: false, hold: false })
 
   const addToast = (message, undoAction) => {
     const id = Date.now()
@@ -29,14 +34,22 @@ function App() {
     setTasks(await taskRes.json())
   }, [])
 
+  const fetchDocsTree = useCallback(async () => {
+    const res = await fetch(`${API}/docs/tree`)
+    setDocsTree(await res.json())
+  }, [])
+
   useEffect(() => {
     fetchData()
+    fetchDocsTree()
 
     // SSE for live reload
     const es = new EventSource(`${API}/events`)
+    es.addEventListener('task-change', () => fetchData())
+    es.addEventListener('docs-change', () => fetchDocsTree())
     es.onmessage = () => fetchData()
     return () => es.close()
-  }, [fetchData])
+  }, [fetchData, fetchDocsTree])
 
   // --- Drag & Drop ---
   const onDragStart = (e, taskId, fromCol) => {
@@ -51,19 +64,22 @@ function App() {
 
   const onDragLeave = () => setDragOver(null)
 
-  const onDrop = async (e, toCol) => {
+  const onDrop = async (e, toCol, status) => {
     e.preventDefault()
     setDragOver(null)
     const { taskId, from } = dragState
     if (!taskId || from === toCol) return
 
+    const body = { taskId, from, to: toCol }
+    if (status) body.status = status
+
     const res = await fetch(`${API}/tasks/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId, from, to: toCol }),
+      body: JSON.stringify(body),
     })
     if (res.ok) {
-      addToast(`"${taskId}" → ${toCol}`, async () => {
+      addToast(`"${taskId}" → ${toCol}${status ? ` (${status})` : ''}`, async () => {
         await fetch(`${API}/tasks/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -138,29 +154,76 @@ function App() {
     <>
       <header className="header">
         <h1>Plank</h1>
+        <div className="header-tabs">
+          <button className={`header-tab${activeView === 'board' ? ' active' : ''}`} onClick={() => setActiveView('board')}>보드</button>
+          <button className={`header-tab${activeView === 'docs' ? ' active' : ''}`} onClick={() => { setActiveView('docs'); fetchDocsTree() }}>문서</button>
+        </div>
         <div className="header-actions">
           <button className="btn" onClick={() => setShowSettings(true)}>설정</button>
         </div>
       </header>
 
-      <div className="board">
-        {columns.map(col => (
-          <Column
-            key={col.id}
-            column={col}
-            tasks={tasks[col.id] || []}
-            labelMap={labelMap}
-            priorityMap={priorityMap}
-            dragOver={dragOver === col.id}
-            onDragStart={onDragStart}
-            onDragOver={(e) => onDragOver(e, col.id)}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => onDrop(e, col.id)}
-            onCardClick={(task) => setSelectedTask({ ...task, _column: col.id })}
-            onAddClick={() => setShowCreate(col.id)}
-          />
-        ))}
-      </div>
+      {activeView === 'board' ? (
+        <div className="board">
+          {columns.map(col => (
+            <Column
+              key={col.id}
+              column={col}
+              tasks={tasks[col.id] || []}
+              labelMap={labelMap}
+              priorityMap={priorityMap}
+              dragOver={dragOver}
+              onDragStart={onDragStart}
+              onDragOver={(e) => onDragOver(e, col.id)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, col.id)}
+              onDropWithStatus={(e, status) => onDrop(e, col.id, status)}
+              onCardClick={(task) => setSelectedTask({ ...task, _column: col.id })}
+              onAddClick={() => setShowCreate(col.id)}
+              expandedZones={expandedZones}
+              setExpandedZones={setExpandedZones}
+              setDragOver={setDragOver}
+            />
+          ))}
+        </div>
+      ) : (
+        <DocsView
+          tree={docsTree}
+          selectedDoc={selectedDoc}
+          editing={docEditing}
+          onSelectDoc={async (docPath) => {
+            const res = await fetch(`${API}/docs/${docPath}`)
+            if (res.ok) setSelectedDoc(await res.json())
+          }}
+          onCreateDoc={async (docPath, body) => {
+            await fetch(`${API}/docs/${docPath}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            fetchDocsTree()
+          }}
+          onUpdateDoc={async (docPath, body) => {
+            await fetch(`${API}/docs/${docPath}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            const res = await fetch(`${API}/docs/${docPath}`)
+            if (res.ok) setSelectedDoc(await res.json())
+            fetchDocsTree()
+          }}
+          onDeleteDoc={async (docPath) => {
+            if (!confirm('이 문서를 삭제할까요?')) return
+            await fetch(`${API}/docs/${docPath}`, { method: 'DELETE' })
+            setSelectedDoc(null)
+            fetchDocsTree()
+          }}
+          onEdit={() => setDocEditing(true)}
+          onCancelEdit={() => setDocEditing(false)}
+          onRefresh={fetchDocsTree}
+        />
+      )}
 
       {selectedTask && (
         <TaskDetail
@@ -173,6 +236,7 @@ function App() {
           onSave={(updates, opts) => handleEdit(selectedTask, updates, opts)}
           onDelete={() => handleDelete(selectedTask)}
           onClose={() => setSelectedTask(null)}
+          onViewDoc={(docPath) => { setActiveView('docs'); fetchDocsTree(); fetch(`${API}/docs/${docPath}`).then(r => r.json()).then(setSelectedDoc) }}
         />
       )}
 
@@ -211,13 +275,20 @@ function App() {
 }
 
 // ===== Column =====
-function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, onDragOver, onDragLeave, onDrop, onCardClick, onAddClick }) {
+function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, onDragOver, onDragLeave, onDrop, onDropWithStatus, onCardClick, onAddClick, expandedZones, setExpandedZones, setDragOver }) {
   // Group done tasks by week
   const isDone = column.id === 'done'
+
+  // Split done tasks into sub-groups
+  const doneTasks = isDone ? tasks.filter(t => !t.status || t.status === 'done') : tasks
+  const closedTasks = isDone ? tasks.filter(t => t.status === 'closed') : []
+  const holdTasks = isDone ? tasks.filter(t => t.status === 'hold') : []
+  const mainTasks = isDone ? doneTasks : tasks
+
   let grouped = null
-  if (isDone && tasks.some(t => t._week)) {
+  if (isDone && mainTasks.some(t => t._week)) {
     grouped = {}
-    for (const t of tasks) {
+    for (const t of mainTasks) {
       const week = t._week || 'other'
       if (!grouped[week]) grouped[week] = []
       grouped[week].push(t)
@@ -231,7 +302,7 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
         <span className="column-count">{tasks.length}</span>
       </div>
       <div
-        className={`column-body${dragOver ? ' drag-over' : ''}`}
+        className={`column-body${dragOver === column.id ? ' drag-over' : ''}`}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
@@ -256,7 +327,7 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
               </div>
             ))
         ) : (
-          tasks.map(task => (
+          mainTasks.map(task => (
             <Card
               key={task.id}
               task={task}
@@ -269,6 +340,45 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
           ))
         )}
         <button className="btn-add" onClick={onAddClick}>+ 태스크 추가</button>
+        {isDone && (
+          <div className="done-zones">
+            {['closed', 'hold'].map(zone => {
+              const zoneTasks = zone === 'closed' ? closedTasks : holdTasks
+              const zoneLabel = zone === 'closed' ? '취소됨' : '보류'
+              const expanded = expandedZones[zone]
+              return (
+                <div
+                  key={zone}
+                  className={`done-zone${dragOver === `done-${zone}` ? ' drag-over' : ''}`}
+                  data-status={zone}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(`done-${zone}`) }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={(e) => onDropWithStatus(e, zone)}
+                >
+                  <div className="done-zone-header" onClick={() => setExpandedZones(prev => ({ ...prev, [zone]: !prev[zone] }))}>
+                    <span>{expanded ? '▾' : '▸'} {zoneLabel}</span>
+                    <span className="done-zone-count">{zoneTasks.length}</span>
+                  </div>
+                  {expanded && (
+                    <div className="done-zone-body">
+                      {zoneTasks.map(task => (
+                        <Card
+                          key={task.id}
+                          task={task}
+                          labelMap={labelMap}
+                          priorityMap={priorityMap}
+                          columnId={column.id}
+                          onDragStart={onDragStart}
+                          onClick={() => onCardClick(task)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -327,13 +437,16 @@ function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
 }
 
 // ===== Task Detail Modal (view + edit) =====
-function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onDelete, onClose }) {
+function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onDelete, onClose, onViewDoc }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
   const [editLabels, setEditLabels] = useState(task.labels || [])
   const [editPriority, setEditPriority] = useState(task.priority || 'p1')
   const [editDeps, setEditDeps] = useState(task.depends_on || [])
+  const [editRefs, setEditRefs] = useState(task.refs || [])
+  const [editRefInput, setEditRefInput] = useState('')
   const [editBody, setEditBody] = useState(task.content || '')
+  const [showDoneTasks, setShowDoneTasks] = useState(false)
 
   const prio = priorityMap[task.priority]
 
@@ -390,6 +503,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
       labels: editLabels,
       priority: editPriority,
       depends_on: editDeps,
+      refs: editRefs,
       content: editBody,
     })
   }
@@ -447,10 +561,14 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
             <details>
               <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {editDeps.length > 0 && `(${editDeps.length}개 선택)`}</summary>
               <div className="dep-picker" style={{ marginTop: 8 }}>
-                {allTasks.filter(t => t.id !== task.id).map(t => (
+                <label className="dep-toggle" style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, padding: '4px 10px' }}>
+                  <input type="checkbox" checked={showDoneTasks} onChange={e => setShowDoneTasks(e.target.checked)} />
+                  완료된 태스크도 보기
+                </label>
+                {allTasks.filter(t => t.id !== task.id && (showDoneTasks || t._column !== 'done' || editDeps.includes(t.id))).map(t => (
                   <div
                     key={t.id}
-                    className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}`}
+                    className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}`}
                     onClick={() => setEditDeps(prev =>
                       prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
                     )}
@@ -460,6 +578,37 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
                     <span className="dep-col">{t._column}</span>
                   </div>
                 ))}
+              </div>
+            </details>
+          </div>
+          <div className="modal-field">
+            <details>
+              <summary style={{ cursor: 'pointer', userSelect: 'none' }}>참고 문서 {editRefs.length > 0 && `(${editRefs.length}개)`}</summary>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    value={editRefInput}
+                    onChange={e => setEditRefInput(e.target.value)}
+                    placeholder="파일 경로 (예: docs/api-spec.md)"
+                    style={{ flex: 1 }}
+                  />
+                  <button type="button" className="btn" onClick={() => {
+                    if (editRefInput.trim() && !editRefs.includes(editRefInput.trim())) {
+                      setEditRefs(prev => [...prev, editRefInput.trim()])
+                      setEditRefInput('')
+                    }
+                  }}>추가</button>
+                </div>
+                {editRefs.length > 0 && (
+                  <div className="refs-chips">
+                    {editRefs.map(r => (
+                      <span key={r} className="ref-chip">
+                        {r}
+                        <button type="button" className="ref-chip-remove" onClick={() => setEditRefs(prev => prev.filter(x => x !== r))}>&times;</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </details>
           </div>
@@ -518,6 +667,28 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         {task.depends_on?.length > 0 && (
           <div className="card-deps" style={{ marginBottom: 12 }}>
             선행 조건: {task.depends_on.join(', ')}
+          </div>
+        )}
+        {(task.refs?.length > 0) && (
+          <div className="task-refs" style={{ marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: '#888' }}>참고 문서:</span>
+            <div className="refs-chips" style={{ marginTop: 4 }}>
+              {task.refs.map(r => (
+                <span key={r} className="ref-chip ref-chip-readonly"
+                  onClick={() => {
+                    if (r.startsWith('docs/') && onViewDoc) {
+                      onViewDoc(r)
+                      onClose()
+                    } else {
+                      navigator.clipboard.writeText(r)
+                    }
+                  }}
+                  title={r.startsWith('docs/') ? '클릭하여 문서 보기' : '클릭하여 경로 복사'}
+                >
+                  {r.startsWith('docs/') ? '📄 ' : '📁 '}{r}
+                </span>
+              ))}
+            </div>
           </div>
         )}
         <div className="task-detail-content">
@@ -636,7 +807,10 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
   const [selectedLabels, setSelectedLabels] = useState([])
   const [priority, setPriority] = useState('p1')
   const [selectedDeps, setSelectedDeps] = useState([])
+  const [refs, setRefs] = useState([])
+  const [refInput, setRefInput] = useState('')
   const [body, setBody] = useState('')
+  const [showDoneTasks, setShowDoneTasks] = useState(false)
 
   const toggleLabel = (id) => {
     setSelectedLabels(prev =>
@@ -659,6 +833,7 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
       labels: selectedLabels,
       priority,
       depends_on: selectedDeps,
+      refs,
       body: body.trim(),
     })
   }
@@ -725,10 +900,14 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
               <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {selectedDeps.length > 0 && `(${selectedDeps.length}개 선택)`}</summary>
               {allTasks.length > 0 ? (
                 <div className="dep-picker" style={{ marginTop: 8 }}>
-                  {allTasks.map(t => (
+                  <label className="dep-toggle" style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, padding: '4px 10px' }}>
+                    <input type="checkbox" checked={showDoneTasks} onChange={e => setShowDoneTasks(e.target.checked)} />
+                    완료된 태스크도 보기
+                  </label>
+                  {allTasks.filter(t => showDoneTasks || t._column !== 'done' || selectedDeps.includes(t.id)).map(t => (
                     <div
                       key={t.id}
-                      className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}`}
+                      className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}`}
                       onClick={() => toggleDep(t.id)}
                     >
                       <span className="dep-check">{selectedDeps.includes(t.id) ? '\u2713' : ''}</span>
@@ -740,6 +919,38 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
               ) : (
                 <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>등록된 태스크가 없습니다</div>
               )}
+            </details>
+          </div>
+
+          <div className="modal-field">
+            <details>
+              <summary style={{ cursor: 'pointer', userSelect: 'none' }}>참고 문서 {refs.length > 0 && `(${refs.length}개)`}</summary>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    value={refInput}
+                    onChange={e => setRefInput(e.target.value)}
+                    placeholder="파일 경로 (예: docs/api-spec.md)"
+                    style={{ flex: 1 }}
+                  />
+                  <button type="button" className="btn" onClick={() => {
+                    if (refInput.trim() && !refs.includes(refInput.trim())) {
+                      setRefs(prev => [...prev, refInput.trim()])
+                      setRefInput('')
+                    }
+                  }}>추가</button>
+                </div>
+                {refs.length > 0 && (
+                  <div className="refs-chips">
+                    {refs.map(r => (
+                      <span key={r} className="ref-chip">
+                        {r}
+                        <button type="button" className="ref-chip-remove" onClick={() => setRefs(prev => prev.filter(x => x !== r))}>&times;</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </details>
           </div>
 
@@ -756,6 +967,139 @@ function CreateModal({ column, labels, priorities, allTasks, onSubmit, onClose }
             <button type="submit" className="btn btn-primary">생성</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Docs View =====
+function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpdateDoc, onDeleteDoc, onEdit, onCancelEdit, onRefresh }) {
+  const [expandedDirs, setExpandedDirs] = useState({})
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newDocPath, setNewDocPath] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [editTitle, setEditTitle] = useState('')
+
+  useEffect(() => {
+    if (editing && selectedDoc) {
+      setEditContent(selectedDoc.content || '')
+      setEditTitle(selectedDoc.data?.title || '')
+    }
+  }, [editing, selectedDoc])
+
+  const toggleDir = (dirPath) => {
+    setExpandedDirs(prev => ({ ...prev, [dirPath]: !prev[dirPath] }))
+  }
+
+  const renderTree = (nodes, depth = 0) => {
+    if (!nodes) return null
+    return nodes.map(node => (
+      <div key={node.path}>
+        <div
+          className={`docs-tree-item${node.type === 'dir' ? ' docs-tree-folder' : ''}${selectedDoc?.path === node.path ? ' active' : ''}`}
+          style={{ paddingLeft: 12 + depth * 16 }}
+          onClick={() => {
+            if (node.type === 'dir') toggleDir(node.path)
+            else onSelectDoc(node.path)
+          }}
+        >
+          <span className="docs-tree-icon">{node.type === 'dir' ? (expandedDirs[node.path] ? '▾' : '▸') : '─'}</span>
+          <span>{node.name}</span>
+        </div>
+        {node.type === 'dir' && expandedDirs[node.path] && node.children && renderTree(node.children, depth + 1)}
+      </div>
+    ))
+  }
+
+  const breadcrumb = selectedDoc?.path?.split('/') || []
+
+  return (
+    <div className="docs-view">
+      <div className="docs-sidebar">
+        <div style={{ padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>문서</span>
+          <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setShowCreateForm(true)}>+ 새 문서</button>
+        </div>
+        {showCreateForm && (
+          <div style={{ padding: '4px 12px 8px' }}>
+            <input
+              value={newDocPath}
+              onChange={e => setNewDocPath(e.target.value)}
+              placeholder="경로 (예: global/rules.md)"
+              style={{ width: '100%', marginBottom: 4, fontSize: 12 }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => {
+                if (newDocPath.trim()) {
+                  const p = newDocPath.trim().endsWith('.md') ? newDocPath.trim() : newDocPath.trim() + '.md'
+                  onCreateDoc(p, { title: p.split('/').pop().replace('.md', ''), content: '' })
+                  setNewDocPath('')
+                  setShowCreateForm(false)
+                }
+              }}>생성</button>
+              <button className="btn" style={{ fontSize: 11, padding: '2px 6px' }} onClick={() => { setShowCreateForm(false); setNewDocPath('') }}>취소</button>
+            </div>
+          </div>
+        )}
+        <div className="docs-tree">
+          {tree ? renderTree(tree.children) : <div style={{ padding: 12, color: '#666', fontSize: 12 }}>로딩 중...</div>}
+        </div>
+      </div>
+      <div className="docs-content">
+        {selectedDoc ? (
+          <>
+            <div className="docs-breadcrumb">
+              {breadcrumb.map((seg, i) => (
+                <span key={i}>
+                  {i > 0 && <span style={{ margin: '0 4px', color: '#555' }}>/</span>}
+                  <span style={{ color: i === breadcrumb.length - 1 ? '#E5E7EB' : '#888' }}>{seg}</span>
+                </span>
+              ))}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                {!editing && <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={onEdit}>편집</button>}
+                <button className="btn btn-danger" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => onDeleteDoc(selectedDoc.path)}>삭제</button>
+              </div>
+            </div>
+            {editing ? (
+              <div style={{ padding: 16 }}>
+                <div className="modal-field">
+                  <label>제목</label>
+                  <input value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+                </div>
+                <div className="modal-field">
+                  <label>내용</label>
+                  <textarea value={editContent} onChange={e => setEditContent(e.target.value)} style={{ minHeight: 300 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="btn btn-primary" onClick={() => {
+                    onUpdateDoc(selectedDoc.path, { title: editTitle, content: editContent })
+                    onCancelEdit()
+                  }}>저장</button>
+                  <button className="btn" onClick={onCancelEdit}>취소</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 16 }}>
+                {selectedDoc.data?.title && <h2>{selectedDoc.data.title}</h2>}
+                <div className="task-detail-content">
+                  {selectedDoc.content ? selectedDoc.content.split('\n').map((line, i) => {
+                    if (line.startsWith('## ')) return <h2 key={i}>{line.slice(3)}</h2>
+                    if (line.startsWith('# ')) return <h1 key={i}>{line.slice(2)}</h1>
+                    if (line.startsWith('- ')) return <div key={i} style={{ paddingLeft: 12 }}>{line}</div>
+                    if (line.trim() === '') return <br key={i} />
+                    return <div key={i}>{line}</div>
+                  }) : <p style={{ color: '#666' }}>내용 없음</p>}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ padding: 40, color: '#666', textAlign: 'center' }}>
+            <p>왼쪽 파일 트리에서 문서를 선택하세요</p>
+            <p style={{ fontSize: 12, marginTop: 8 }}>또는 "새 문서" 버튼으로 문서를 생성하세요</p>
+          </div>
+        )}
       </div>
     </div>
   )

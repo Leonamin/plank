@@ -13,6 +13,15 @@ app.use(express.json())
 
 const TASKS_DIR = path.resolve(process.cwd(), '.tasks')
 const CONFIG_PATH = path.join(TASKS_DIR, 'config.yml')
+const DOCS_DIR = path.join(TASKS_DIR, 'docs')
+
+function resolveDocPath(reqPath) {
+  const resolved = path.resolve(DOCS_DIR, reqPath)
+  if (!resolved.startsWith(DOCS_DIR + path.sep) && resolved !== DOCS_DIR) {
+    return null
+  }
+  return resolved
+}
 
 const DEFAULT_CONFIG = {
   board: {
@@ -73,9 +82,13 @@ const sseClients = new Set()
 await bootstrap()
 
 const watcher = watch(TASKS_DIR, { ignoreInitial: true })
-watcher.on('all', () => {
+watcher.on('all', (event, filePath) => {
+  const relative = path.relative(TASKS_DIR, filePath)
+  const eventType = relative.startsWith('docs' + path.sep) || relative === 'docs'
+    ? 'docs-change'
+    : 'task-change'
   for (const client of sseClients) {
-    client.write('data: reload\n\n')
+    client.write(`event: ${eventType}\ndata: reload\n\n`)
   }
 })
 
@@ -132,7 +145,7 @@ app.get('/api/tasks', async (req, res) => {
 // Move task between columns
 app.post('/api/tasks/move', async (req, res) => {
   try {
-    const { taskId, from, to } = req.body
+    const { taskId, from, to, status } = req.body
     const fromDir = path.join(TASKS_DIR, from)
     const toDir = path.join(TASKS_DIR, to)
 
@@ -153,6 +166,21 @@ app.post('/api/tasks/move', async (req, res) => {
 
     await fs.rename(found.fullPath, path.join(destDir, found.file))
 
+    // Set or remove status field in frontmatter
+    if (to === 'done') {
+      const destPath = path.join(destDir, found.file)
+      const raw = await fs.readFile(destPath, 'utf-8')
+      const { data, content } = matter(raw)
+      data.status = status || 'done'
+      await fs.writeFile(destPath, matter.stringify(content, data))
+    } else if (from === 'done') {
+      const destPath = path.join(destDir, found.file)
+      const raw = await fs.readFile(destPath, 'utf-8')
+      const { data, content } = matter(raw)
+      delete data.status
+      await fs.writeFile(destPath, matter.stringify(content, data))
+    }
+
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -162,7 +190,7 @@ app.post('/api/tasks/move', async (req, res) => {
 // Create new task
 app.post('/api/tasks', async (req, res) => {
   try {
-    const { column, title, labels, priority, depends_on, body, id: customId } = req.body
+    const { column, title, labels, priority, depends_on, refs, body, id: customId } = req.body
     const id = customId || slugify(title) || `task-${crypto.randomUUID().slice(0, 8)}`
     const filename = `${id}.md`
 
@@ -174,7 +202,7 @@ app.post('/api/tasks', async (req, res) => {
       created: new Date().toISOString().split('T')[0],
     }
     if (depends_on?.length) frontmatter.depends_on = depends_on
-
+    if (refs?.length) frontmatter.refs = refs
 
     const content = matter.stringify(body || '', frontmatter)
     const colDir = path.join(TASKS_DIR, column || 'backlog')
@@ -284,6 +312,101 @@ app.delete('/api/trash/:id', async (req, res) => {
     await fs.unlink(found.fullPath)
     res.json({ ok: true })
   } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// --- Docs API ---
+
+async function readDocsTree(dir, basePath = '') {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    const children = []
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name
+      if (entry.isDirectory()) {
+        const sub = await readDocsTree(path.join(dir, entry.name), entryPath)
+        children.push({ name: entry.name, path: entryPath, type: 'dir', children: sub })
+      } else if (entry.name.endsWith('.md')) {
+        children.push({ name: entry.name, path: entryPath, type: 'file' })
+      }
+    }
+    return children.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  } catch {
+    return []
+  }
+}
+
+app.get('/api/docs/tree', async (req, res) => {
+  try {
+    await fs.mkdir(DOCS_DIR, { recursive: true })
+    const children = await readDocsTree(DOCS_DIR)
+    res.json({ name: 'docs', path: '', type: 'dir', children })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/docs/*', async (req, res) => {
+  try {
+    const docPath = resolveDocPath(req.params[0])
+    if (!docPath) return res.status(400).json({ error: 'Invalid path' })
+    const raw = await fs.readFile(docPath, 'utf-8')
+    const { data, content } = matter(raw)
+    res.json({ data, content, path: req.params[0] })
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ error: 'Not found' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/docs/*', async (req, res) => {
+  try {
+    const docPath = resolveDocPath(req.params[0])
+    if (!docPath) return res.status(400).json({ error: 'Invalid path' })
+    try {
+      await fs.access(docPath)
+      return res.status(409).json({ error: 'File already exists' })
+    } catch {}
+    await fs.mkdir(path.dirname(docPath), { recursive: true })
+    const { content, ...frontmatterData } = req.body
+    const fileContent = matter.stringify(content || '', frontmatterData)
+    await fs.writeFile(docPath, fileContent)
+    res.json({ ok: true, path: req.params[0] })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/docs/*', async (req, res) => {
+  try {
+    const docPath = resolveDocPath(req.params[0])
+    if (!docPath) return res.status(400).json({ error: 'Invalid path' })
+    const raw = await fs.readFile(docPath, 'utf-8')
+    const { data: existingData, content: existingContent } = matter(raw)
+    const { content, ...frontmatterUpdates } = req.body
+    const newData = { ...existingData, ...frontmatterUpdates }
+    const finalContent = content !== undefined ? content : existingContent
+    await fs.writeFile(docPath, matter.stringify(finalContent, newData))
+    res.json({ ok: true })
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ error: 'Not found' })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.delete('/api/docs/*', async (req, res) => {
+  try {
+    const docPath = resolveDocPath(req.params[0])
+    if (!docPath) return res.status(400).json({ error: 'Invalid path' })
+    await fs.unlink(docPath)
+    res.json({ ok: true })
+  } catch (err) {
+    if (err.code === 'ENOENT') return res.status(404).json({ error: 'Not found' })
     res.status(500).json({ error: err.message })
   }
 })

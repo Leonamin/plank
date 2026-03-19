@@ -59,3 +59,40 @@ done
 if [ -n "$summary" ]; then
   echo "[PLANK] 현재 활성 태스크:$summary"
 fi
+
+# Refs injection for in-progress tasks
+refs_content=""
+for f in "$TASKS_DIR/in-progress"/*.md; do
+  [ -f "$f" ] || continue
+  task_id=$(basename "$f" .md)
+  in_refs=false
+  while IFS= read -r line; do
+    if [ "$line" = "refs:" ]; then
+      in_refs=true
+      continue
+    fi
+    if [ "$in_refs" = true ]; then
+      case "$line" in
+        "  - "*)
+          ref_path="${line#  - }"
+          ref_path="${ref_path#\"}" ; ref_path="${ref_path%\"}"
+          ref_path="${ref_path#\'}" ; ref_path="${ref_path%\'}"
+          if [ -f "$ref_path" ]; then
+            refs_content="${refs_content}
+--- ref: $ref_path (task: $task_id) ---
+$(head -100 "$ref_path")"
+          elif [ -f "$TASKS_DIR/$ref_path" ]; then
+            refs_content="${refs_content}
+--- ref: $ref_path (task: $task_id) ---
+$(head -100 "$TASKS_DIR/$ref_path")"
+          fi
+          ;;
+        *) in_refs=false ;;
+      esac
+    fi
+  done < "$f"
+done
+
+if [ -n "$refs_content" ]; then
+  echo "[PLANK REFS] 참조 문서:$refs_content"
+fi
