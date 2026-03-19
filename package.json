@@ -19,7 +19,10 @@
     "dev:client": "vite",
     "dev:server": "node server/index.js",
     "build": "vite build",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "release:patch": "npm version patch && npm publish && git push origin develop --tags",
+    "release:minor": "npm version minor && npm publish && git push origin develop --tags",
+    "release:major": "npm version major && npm publish && git push origin develop --tags"
   },
   "dependencies": {
     "express": "^4.21.0",
