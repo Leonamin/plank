@@ -494,7 +494,26 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
     while (i < lines.length) {
       const line = lines[i]
 
-      // Table: collect consecutive | lines
+      // Fenced code block
+      if (line.trim().startsWith('```')) {
+        const lang = line.trim().slice(3).trim()
+        const codeLines = []
+        i++
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.push(lines[i])
+          i++
+        }
+        i++
+        elements.push(
+          <pre key={`pre${i}`} className="md-code-block">
+            {lang && <div className="md-code-lang">{lang}</div>}
+            <code>{codeLines.join('\n')}</code>
+          </pre>
+        )
+        continue
+      }
+
+      // Table
       if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
         const tableLines = []
         while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
@@ -508,24 +527,32 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         const bodyRows = tableLines.slice(bodyStart).map(parseRow)
         elements.push(
           <table key={`t${i}`} className="md-table">
-            <thead><tr>{headers.map((h, j) => <th key={j}>{h}</th>)}</tr></thead>
+            <thead><tr>{headers.map((h, j) => <th key={j}>{renderInline(h)}</th>)}</tr></thead>
             <tbody>{bodyRows.map((row, ri) => (
-              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+              <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{renderInline(cell)}</td>)}</tr>
             ))}</tbody>
           </table>
         )
         continue
       }
 
-      if (line.startsWith('## ')) {
-        elements.push(<h2 key={i}>{line.slice(3)}</h2>)
+      if (line.startsWith('### ')) {
+        elements.push(<h3 key={i}>{renderInline(line.slice(4))}</h3>)
+      } else if (line.startsWith('## ')) {
+        elements.push(<h2 key={i}>{renderInline(line.slice(3))}</h2>)
+      } else if (line.startsWith('# ')) {
+        elements.push(<h1 key={i}>{renderInline(line.slice(2))}</h1>)
+      } else if (line.startsWith('> ')) {
+        elements.push(<blockquote key={i} className="md-blockquote">{renderInline(line.slice(2))}</blockquote>)
+      } else if (/^---+$/.test(line.trim())) {
+        elements.push(<hr key={i} className="md-hr" />)
       } else if (line.match(/^\s*- \[x\]:? /)) {
         const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
         const text = line.replace(/^\s*- \[x\]:? /, '')
         elements.push(
           <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box checked" />
-            <span style={{ textDecoration: 'line-through', color: '#666' }}>{text}</span>
+            <span style={{ textDecoration: 'line-through', color: '#666' }}>{renderInline(text)}</span>
           </div>
         )
       } else if (line.match(/^\s*- \[ \]:? /)) {
@@ -534,15 +561,15 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         elements.push(
           <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
             <span className="check-box" />
-            <span>{text}</span>
+            <span>{renderInline(text)}</span>
           </div>
         )
       } else if (line.startsWith('- ')) {
-        elements.push(<div key={i} style={{ paddingLeft: 12 }}>{line}</div>)
+        elements.push(<div key={i} style={{ paddingLeft: 12 }}>{renderInline(line)}</div>)
       } else if (line.trim() === '') {
         elements.push(<br key={i} />)
       } else {
-        elements.push(<div key={i}>{line}</div>)
+        elements.push(<div key={i}>{renderInline(line)}</div>)
       }
       i++
     }
@@ -1127,11 +1154,79 @@ function LabelFilterBar({ labels, activeFilters, onToggleFilter, onClearFilters 
 }
 
 // ===== Shared markdown rendering =====
+function renderInline(text) {
+  // Process inline markdown: bold, italic, inline code
+  const parts = []
+  let remaining = text
+  let key = 0
+  while (remaining.length > 0) {
+    // Inline code `...`
+    const codeMatch = remaining.match(/^(.*?)`([^`]+)`(.*)$/)
+    if (codeMatch) {
+      if (codeMatch[1]) parts.push(...renderInlineBoldItalic(codeMatch[1], key++))
+      parts.push(<code key={`c${key++}`} className="md-inline-code">{codeMatch[2]}</code>)
+      remaining = codeMatch[3]
+      continue
+    }
+    parts.push(...renderInlineBoldItalic(remaining, key++))
+    break
+  }
+  return parts
+}
+
+function renderInlineBoldItalic(text, baseKey) {
+  const parts = []
+  let remaining = text
+  let key = 0
+  while (remaining.length > 0) {
+    // Bold **...**
+    const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*(.*)$/)
+    if (boldMatch) {
+      if (boldMatch[1]) parts.push(<span key={`${baseKey}b${key++}`}>{boldMatch[1]}</span>)
+      parts.push(<strong key={`${baseKey}b${key++}`}>{boldMatch[2]}</strong>)
+      remaining = boldMatch[3]
+      continue
+    }
+    // Italic *...*
+    const italicMatch = remaining.match(/^(.*?)\*(.+?)\*(.*)$/)
+    if (italicMatch) {
+      if (italicMatch[1]) parts.push(<span key={`${baseKey}i${key++}`}>{italicMatch[1]}</span>)
+      parts.push(<em key={`${baseKey}i${key++}`}>{italicMatch[2]}</em>)
+      remaining = italicMatch[3]
+      continue
+    }
+    if (remaining) parts.push(<span key={`${baseKey}t${key++}`}>{remaining}</span>)
+    break
+  }
+  return parts.length ? parts : [remaining]
+}
+
 function renderMarkdownLines(lines) {
   const elements = []
   let i = 0
   while (i < lines.length) {
     const line = lines[i]
+
+    // Fenced code block ```
+    if (line.trim().startsWith('```')) {
+      const lang = line.trim().slice(3).trim()
+      const codeLines = []
+      i++
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++ // skip closing ```
+      elements.push(
+        <pre key={`pre${i}`} className="md-code-block">
+          {lang && <div className="md-code-lang">{lang}</div>}
+          <code>{codeLines.join('\n')}</code>
+        </pre>
+      )
+      continue
+    }
+
+    // Table
     if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
       const tableLines = []
       while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
@@ -1145,19 +1240,31 @@ function renderMarkdownLines(lines) {
       const bodyRows = tableLines.slice(bodyStart).map(parseRow)
       elements.push(
         <table key={`t${i}`} className="md-table">
-          <thead><tr>{headers.map((h, j) => <th key={j}>{h}</th>)}</tr></thead>
+          <thead><tr>{headers.map((h, j) => <th key={j}>{renderInline(h)}</th>)}</tr></thead>
           <tbody>{bodyRows.map((row, ri) => (
-            <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{cell}</td>)}</tr>
+            <tr key={ri}>{row.map((cell, ci) => <td key={ci}>{renderInline(cell)}</td>)}</tr>
           ))}</tbody>
         </table>
       )
       continue
     }
-    if (line.startsWith('## ')) elements.push(<h2 key={i}>{line.slice(3)}</h2>)
-    else if (line.startsWith('# ')) elements.push(<h1 key={i}>{line.slice(2)}</h1>)
-    else if (line.startsWith('- ')) elements.push(<div key={i} style={{ paddingLeft: 12 }}>{line}</div>)
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      elements.push(<blockquote key={i} className="md-blockquote">{renderInline(line.slice(2))}</blockquote>)
+    }
+    // Headings
+    else if (line.startsWith('### ')) elements.push(<h3 key={i}>{renderInline(line.slice(4))}</h3>)
+    else if (line.startsWith('## ')) elements.push(<h2 key={i}>{renderInline(line.slice(3))}</h2>)
+    else if (line.startsWith('# ')) elements.push(<h1 key={i}>{renderInline(line.slice(2))}</h1>)
+    // Horizontal rule
+    else if (/^---+$/.test(line.trim())) elements.push(<hr key={i} className="md-hr" />)
+    // List item
+    else if (line.startsWith('- ')) elements.push(<div key={i} style={{ paddingLeft: 12 }}>{renderInline(line)}</div>)
+    // Empty line
     else if (line.trim() === '') elements.push(<br key={i} />)
-    else elements.push(<div key={i}>{line}</div>)
+    // Normal text with inline formatting
+    else elements.push(<div key={i}>{renderInline(line)}</div>)
     i++
   }
   return elements
