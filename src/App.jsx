@@ -741,7 +741,7 @@ function SettingsModal({ config, onSave, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480, overflow: 'hidden' }}>
         <h2>보드 설정</h2>
 
         <div className="modal-field">
