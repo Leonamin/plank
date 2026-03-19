@@ -526,21 +526,13 @@ try {
   }
 } catch {}
 
-const preferredPort = parseInt(process.env.PLANK_PORT || '4567', 10)
+const preferredPort = parseInt(process.env.PLANK_PORT || '0', 10)
 
-function tryListen(port, maxRetries = 5) {
-  const server = app.listen(port, () => {
-    console.log(`\n  Plank server running on http://localhost:${port}\n`)
-  })
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE' && maxRetries > 0) {
-      console.log(`  Port ${port} is in use, trying ${port + 1}...`)
-      tryListen(port + 1, maxRetries - 1)
-    } else {
-      console.error(`  Failed to start: ${err.message}`)
-      process.exit(1)
-    }
-  })
-}
-
-tryListen(preferredPort)
+const server = app.listen(preferredPort, () => {
+  const actualPort = server.address().port
+  console.log(`\n  Plank server running on http://localhost:${actualPort}\n`)
+})
+server.on('error', (err) => {
+  console.error(`  Failed to start: ${err.message}`)
+  process.exit(1)
+})
