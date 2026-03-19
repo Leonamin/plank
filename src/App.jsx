@@ -166,9 +166,8 @@ function App() {
 
       {activeView === 'board' ? (
         <>
-        <EpicBar
+        <LabelFilterBar
           labels={config.labels || []}
-          allTasks={allTasks}
           activeFilters={activeFilters}
           onToggleFilter={(id) => setActiveFilters(prev =>
             prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
@@ -1062,37 +1061,24 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
   )
 }
 
-// ===== Epic Bar (label filter + progress) =====
-function EpicBar({ labels, allTasks, activeFilters, onToggleFilter, onClearFilters }) {
+// ===== Label Filter Bar =====
+function LabelFilterBar({ labels, activeFilters, onToggleFilter, onClearFilters }) {
   if (!labels.length) return null
-
-  const stats = labels.map(l => {
-    const tagged = allTasks.filter(t => (t.labels || []).includes(l.id))
-    const done = tagged.filter(t => t._column === 'done')
-    return { ...l, total: tagged.length, done: done.length }
-  }).filter(s => s.total > 0)
-
-  if (!stats.length) return null
 
   return (
     <div className="epic-bar">
       <div className="epic-chips">
-        {stats.map(s => {
-          const active = activeFilters.includes(s.id)
-          const pct = Math.round((s.done / s.total) * 100)
+        {labels.map(l => {
+          const active = activeFilters.includes(l.id)
           return (
             <button
-              key={s.id}
+              key={l.id}
               className={`epic-chip${active ? ' active' : ''}`}
-              style={{ '--epic-color': s.color }}
-              onClick={() => onToggleFilter(s.id)}
+              style={{ '--epic-color': l.color }}
+              onClick={() => onToggleFilter(l.id)}
             >
-              <span className="epic-chip-color" style={{ background: s.color }} />
-              <span className="epic-chip-name">{s.name}</span>
-              <span className="epic-chip-count">{s.done}/{s.total}</span>
-              <span className="epic-chip-bar">
-                <span className="epic-chip-fill" style={{ width: `${pct}%`, background: s.color }} />
-              </span>
+              <span className="epic-chip-color" style={{ background: l.color }} />
+              <span className="epic-chip-name">{l.name}</span>
             </button>
           )
         })}
