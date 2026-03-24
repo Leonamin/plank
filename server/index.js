@@ -125,6 +125,25 @@ app.put('/api/config', async (req, res) => {
     const newConfig = req.body
     const content = yaml.dump(newConfig, { lineWidth: -1, noRefs: true })
     await fs.writeFile(CONFIG_PATH, content, 'utf-8')
+
+    // Auto-create epic docs for new epics
+    if (newConfig.epics?.length) {
+      const epicsDir = path.join(DOCS_DIR, 'epics')
+      await fs.mkdir(epicsDir, { recursive: true })
+      for (const epic of newConfig.epics) {
+        const epicFile = path.join(epicsDir, `${epic.id}.md`)
+        try {
+          await fs.access(epicFile)
+        } catch {
+          const epicDoc = matter.stringify(
+            '## 왜 (Why)\n이 에픽을 만드는 이유.\n\n## 결정된 것\n- YYYY-MM-DD: 결정 내용\n\n## 아직 안 정한 것\n- 미결 사항\n\n## 떠오른 생각\n- 메모',
+            { title: epic.name }
+          )
+          await fs.writeFile(epicFile, epicDoc)
+        }
+      }
+    }
+
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: err.message })

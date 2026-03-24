@@ -222,6 +222,12 @@ body {
   font-size: 11px;
   color: #D1D5DB;
   font-weight: 500;
+  cursor: pointer;
+}
+
+.epic-progress-name:hover {
+  text-decoration: underline;
+  color: #60A5FA;
 }
 
 .epic-progress-count {
@@ -241,6 +247,58 @@ body {
   height: 100%;
   border-radius: 2px;
   transition: width 0.3s;
+}
+
+/* Epic Linked Tasks in Doc View */
+.epic-linked-tasks {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.epic-linked-tasks h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.epic-task-group {
+  margin-bottom: 10px;
+}
+
+.epic-task-col-label {
+  font-size: 10px;
+  color: #6B7280;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 2px 0;
+  margin-bottom: 4px;
+}
+
+.epic-task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #D1D5DB;
+}
+
+.epic-task-item:hover {
+  background: #1F2937;
+}
+
+.epic-task-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epic-task-progress {
+  font-size: 10px;
+  color: #6B7280;
+  flex-shrink: 0;
 }
 
 /* ===== Picker chips (labels & priority in modals) ===== */

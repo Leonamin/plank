@@ -183,7 +183,11 @@ function App() {
         {epics.length > 0 && (
           <EpicProgressBar epics={epics} allTasks={allTasks} activeFilters={activeFilters} onToggleFilter={(id) => setActiveFilters(prev =>
             prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
-          )} />
+          )} onViewDoc={(epicId) => {
+            setActiveView('docs')
+            fetchDocsTree()
+            fetch(`${API}/docs/epics/${epicId}.md`).then(r => r.ok ? r.json() : null).then(doc => { if (doc) setSelectedDoc(doc) })
+          }} />
         )}
         <div className="board">
           {columns.map(col => {
@@ -220,6 +224,8 @@ function App() {
           tree={docsTree}
           selectedDoc={selectedDoc}
           editing={docEditing}
+          allTasks={allTasks}
+          epicMap={epicMap}
           onSelectDoc={async (docPath) => {
             const res = await fetch(`${API}/docs/${docPath}`)
             if (res.ok) setSelectedDoc(await res.json())
@@ -1672,7 +1678,7 @@ function renderMarkdownLines(lines) {
 }
 
 // ===== Epic Progress Bar =====
-function EpicProgressBar({ epics, allTasks, activeFilters, onToggleFilter }) {
+function EpicProgressBar({ epics, allTasks, activeFilters, onToggleFilter, onViewDoc }) {
   // Only count active tasks (not done)
   const activeTasks = allTasks.filter(t => t._column !== 'done')
 
@@ -1698,7 +1704,7 @@ function EpicProgressBar({ epics, allTasks, activeFilters, onToggleFilter }) {
           <div key={epic.id} className={`epic-progress-item${isFiltered ? ' active' : ''}`} onClick={() => onToggleFilter(`epic:${epic.id}`)}>
             <div className="epic-progress-header">
               <span className="epic-progress-dot" style={{ background: epic.color }} />
-              <span className="epic-progress-name">{epic.name}</span>
+              <span className="epic-progress-name" onClick={(e) => { e.stopPropagation(); onViewDoc?.(epic.id) }} title="에픽 문서 보기">{epic.name}</span>
               <span className="epic-progress-count">{epic.done}/{epic.total}</span>
             </div>
             <div className="epic-progress-track">
@@ -1721,7 +1727,7 @@ const DOC_TYPES = [
   { id: 'issues', label: '이슈', icon: '⚠️' },
 ]
 
-function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpdateDoc, onDeleteDoc, onEdit, onCancelEdit, onRefresh }) {
+function DocsView({ tree, selectedDoc, editing, allTasks, epicMap, onSelectDoc, onCreateDoc, onUpdateDoc, onDeleteDoc, onEdit, onCancelEdit, onRefresh }) {
   const [expandedSections, setExpandedSections] = useState(() => Object.fromEntries(DOC_TYPES.map(t => [t.id, true])))
   const [expandedDirs, setExpandedDirs] = useState({})
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -1883,6 +1889,48 @@ function DocsView({ tree, selectedDoc, editing, onSelectDoc, onCreateDoc, onUpda
                 <div className="task-detail-content">
                   {selectedDoc.content ? renderMarkdownLines(selectedDoc.content.split('\n')) : <p className="text-muted">내용 없음</p>}
                 </div>
+                {(() => {
+                  // Show linked tasks for epic docs
+                  const pathMatch = selectedDoc.path?.match(/^epics\/(.+)\.md$/)
+                  if (!pathMatch) return null
+                  const epicId = pathMatch[1]
+                  const epic = epicMap?.[epicId]
+                  if (!epic) return null
+                  const linkedTasks = (allTasks || []).filter(t => t.epic === epicId)
+                  if (linkedTasks.length === 0) return (
+                    <div className="epic-linked-tasks">
+                      <h3 style={{ color: epic.color }}>연결된 태스크</h3>
+                      <p className="text-muted" style={{ fontSize: 12 }}>이 에픽에 연결된 태스크가 없습니다</p>
+                    </div>
+                  )
+                  const byColumn = {}
+                  for (const t of linkedTasks) {
+                    const col = t._column || 'unknown'
+                    if (!byColumn[col]) byColumn[col] = []
+                    byColumn[col].push(t)
+                  }
+                  const colOrder = ['in-progress', 'todo', 'backlog', 'waiting', 'done']
+                  return (
+                    <div className="epic-linked-tasks">
+                      <h3 style={{ color: epic.color }}>연결된 태스크 ({linkedTasks.length})</h3>
+                      {colOrder.filter(c => byColumn[c]).map(col => (
+                        <div key={col} className="epic-task-group">
+                          <div className="epic-task-col-label">{col}</div>
+                          {byColumn[col].map(t => {
+                            const checkTotal = (t.content?.match(/^\s*- \[[ x]\]/gm) || []).length
+                            const checkDone = (t.content?.match(/^\s*- \[x\]/gm) || []).length
+                            return (
+                              <div key={t.id} className="epic-task-item">
+                                <span className="epic-task-title">{t.title}</span>
+                                {checkTotal > 0 && <span className="epic-task-progress">{checkDone}/{checkTotal}</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
             )}
           </>

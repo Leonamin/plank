@@ -1,85 +1,121 @@
 board:
-  name: "TaskBoard"
+  name: TaskBoard
   columns:
     - id: backlog
-      name: "백로그"
-      description: "당장은 아니지만 까먹으면 안 되는 것"
+      name: 백로그
+      description: 당장은 아니지만 까먹으면 안 되는 것
     - id: todo
-      name: "이번주 할 일"
-      description: "이번 주에 반드시 처리할 것"
+      name: 이번주 할 일
+      description: 이번 주에 반드시 처리할 것
     - id: in-progress
-      name: "진행중"
-      description: "지금 작업 중인 것"
+      name: 진행중
+      description: 지금 작업 중인 것
     - id: waiting
-      name: "대기중"
-      description: "진행했지만 외부 대기 필요 (심사, 테스트 등)"
+      name: 대기중
+      description: 진행했지만 외부 대기 필요 (심사, 테스트 등)
     - id: done
-      name: "완료"
-      description: "끝난 것 (주차별 자동 정리)"
-
+      name: 완료
+      description: 끝난 것 (주차별 자동 정리)
 labels:
   - id: dev
-    name: "개발"
-    color: "#3B82F6"
+    name: 개발
+    color: '#3B82F6'
   - id: design
-    name: "디자인"
-    color: "#8B5CF6"
+    name: 디자인
+    color: '#8B5CF6'
   - id: plan
-    name: "기획"
-    color: "#F59E0B"
+    name: 기획
+    color: '#F59E0B'
   - id: bug
-    name: "버그"
-    color: "#EF4444"
+    name: 버그
+    color: '#EF4444'
   - id: refactor
-    name: "리팩토링"
-    color: "#10B981"
+    name: 리팩토링
+    color: '#10B981'
   - id: admin
-    name: "어드민"
-    color: "#6366F1"
+    name: 어드민
+    color: '#6366F1'
   - id: guest
-    name: "게스트"
-    color: "#EC4899"
-
-epics: []
-
+    name: 게스트
+    color: '#EC4899'
+epics:
+  - id: 햄찌
+    name: 햄찌
+    color: '#6B7280'
 priorities:
   - id: p0
-    name: "P0 지금당장"
-    color: "#DC2626"
-    description: "오늘 안에 해야 함"
+    name: P0 지금당장
+    color: '#DC2626'
+    description: 오늘 안에 해야 함
   - id: p1
-    name: "P1 이번주"
-    color: "#F59E0B"
-    description: "이번 주 안에 해야 함"
+    name: P1 이번주
+    color: '#F59E0B'
+    description: 이번 주 안에 해야 함
   - id: p2
-    name: "P2 이번달"
-    color: "#3B82F6"
-    description: "이번 달 안에 해야 함"
+    name: P2 이번달
+    color: '#3B82F6'
+    description: 이번 달 안에 해야 함
   - id: p3
-    name: "P3 언젠가"
-    color: "#6B7280"
-    description: "해야 하지만 급하지 않음"
-
+    name: P3 언젠가
+    color: '#6B7280'
+    description: 해야 하지만 급하지 않음
 done_archive:
   enabled: true
-  group_by: week  # week | month
-
+  group_by: week
 templates:
   - id: feature
-    name: "신규 기능"
-    body: "## 목표\n\n## 구현 항목\n- [ ] \n\n## 참고\n"
+    name: 신규 기능
+    body: |
+      ## 목표
+
+      ## 구현 항목
+      - [ ] 
+
+      ## 참고
   - id: bugfix
-    name: "버그 수정"
-    body: "## 상황\n\n## 재현 방법\n\n## 예상 원인\n\n## 할 일\n- [ ] \n"
+    name: 버그 수정
+    body: |
+      ## 상황
+
+      ## 재현 방법
+
+      ## 예상 원인
+
+      ## 할 일
+      - [ ] 
   - id: improvement
-    name: "기능 개선"
-    body: "## 현재 상태\n\n## 개선 목표\n\n## 할 일\n- [ ] \n"
+    name: 기능 개선
+    body: |
+      ## 현재 상태
+
+      ## 개선 목표
+
+      ## 할 일
+      - [ ] 
   - id: refactor
-    name: "리팩토링"
-    body: "## 대상\n\n## 이유\n\n## 할 일\n- [ ] \n"
+    name: 리팩토링
+    body: |
+      ## 대상
+
+      ## 이유
+
+      ## 할 일
+      - [ ] 
   - id: design
-    name: "디자인"
-    body: "## 목표\n\n## 요구사항\n\n## 할 일\n- [ ] \n"
+    name: 디자인
+    body: |
+      ## 목표
+
+      ## 요구사항
+
+      ## 할 일
+      - [ ] 
   - id: plan
-    name: "기획"
-    body: "## 배경\n\n## 논의할 내용\n- [ ] \n\n## 결론\n"
+    name: 기획
+    body: |
+      ## 배경
+
+      ## 논의할 내용
+      - [ ] 
+
+      ## 결론
