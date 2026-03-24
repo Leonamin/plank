@@ -25,19 +25,20 @@
     "release:major": "git checkout main && git merge develop && npm version major && npm publish && git push origin main --tags && git checkout develop && git merge main && git push origin develop"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "cors": "^2.8.5",
-    "gray-matter": "^4.0.3",
     "chokidar": "^4.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "js-yaml": "^4.1.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
     "concurrently": "^9.0.0",
+    "typescript": "^6.0.2",
     "vite": "^6.0.0"
   }
 }
