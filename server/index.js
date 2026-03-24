@@ -179,12 +179,14 @@ app.post('/api/tasks/move', async (req, res) => {
       const raw = await fs.readFile(destPath, 'utf-8')
       const { data, content } = matter(raw)
       data.status = status || 'done'
+      data.completed_at = new Date().toISOString().split('T')[0]
       await fs.writeFile(destPath, matter.stringify(content, data))
     } else if (from === 'done') {
       const destPath = path.join(destDir, found.file)
       const raw = await fs.readFile(destPath, 'utf-8')
       const { data, content } = matter(raw)
       delete data.status
+      delete data.completed_at
       await fs.writeFile(destPath, matter.stringify(content, data))
     }
 
@@ -435,8 +437,16 @@ async function readTasksFromDir(dir) {
 
     for (const entry of entries) {
       if (entry.isFile() && entry.name.endsWith('.md')) {
-        const raw = await fs.readFile(path.join(dir, entry.name), 'utf-8')
+        const filePath = path.join(dir, entry.name)
+        const raw = await fs.readFile(filePath, 'utf-8')
         const { data, content } = matter(raw)
+        // Fallback: use file mtime if completed_at is missing (for legacy done tasks)
+        if (!data.completed_at && data.status) {
+          const stat = await fs.stat(filePath)
+          data._completedAt = stat.mtime.toISOString().split('T')[0]
+        } else if (data.completed_at) {
+          data._completedAt = String(data.completed_at).split('T')[0]
+        }
         tasks.push({ ...data, content, _file: entry.name })
       }
       // Recurse into subdirectories (e.g., done/2026-W12/)

@@ -261,6 +261,55 @@ body {
   flex-shrink: 0;
 }
 
+.dep-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dep-item.disabled .dep-check {
+  color: #EF4444;
+}
+
+.dep-filters {
+  padding: 4px 10px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dep-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.dep-filter-label {
+  font-size: 10px;
+  color: #6B7280;
+  min-width: 28px;
+}
+
+.dep-filter-chip {
+  font-size: 10px;
+  padding: 1px 7px;
+  border: 1px solid #374151;
+  border-radius: 3px;
+  color: #9CA3AF;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dep-filter-chip:hover {
+  background: #1F2937;
+}
+
+.dep-filter-chip.active {
+  background: #374151;
+  color: #E5E7EB;
+  border-color: #4B5563;
+}
+
 .card-deps {
   font-size: 11px;
   color: var(--text-muted);
@@ -305,6 +354,32 @@ body {
   color: var(--text-muted);
   padding: 4px 8px;
   font-weight: 600;
+}
+
+.done-group-filter {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 2px;
+}
+
+.done-group-chip {
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid #374151;
+  border-radius: 3px;
+  color: #9CA3AF;
+  cursor: pointer;
+  user-select: none;
+}
+
+.done-group-chip:hover {
+  background: #1F2937;
+}
+
+.done-group-chip.active {
+  background: #374151;
+  color: #E5E7EB;
+  border-color: #4B5563;
 }
 
 /* ===== Modal ===== */
@@ -680,6 +755,69 @@ body {
 
 .ref-chip-remove:hover {
   color: #EF4444;
+}
+
+/* Doc Tree Picker */
+.dtp-container {
+  border: 1px solid #374151;
+  border-radius: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  background: #111827;
+}
+
+.dtp-section {
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9CA3AF;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dtp-section:hover {
+  background: #1F2937;
+}
+
+.dtp-item {
+  padding: 3px 8px;
+  font-size: 12px;
+  color: #D1D5DB;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dtp-item:hover {
+  background: #1F2937;
+}
+
+.dtp-item.dtp-dir {
+  color: #9CA3AF;
+}
+
+.dtp-item.dtp-selected {
+  color: #60A5FA;
+}
+
+.dtp-icon {
+  font-size: 10px;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dtp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-active {
+  background: #374151;
+  color: #60A5FA;
 }
 
 /* Header tabs */

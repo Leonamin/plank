@@ -296,9 +296,92 @@ function App() {
   )
 }
 
+// ===== Done grouping helpers =====
+function getISOWeek(d) {
+  const date = new Date(d.getTime())
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7))
+  const week1 = new Date(date.getFullYear(), 0, 4)
+  const weekNum = 1 + Math.round(((date - week1) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7)
+  return { year: date.getFullYear(), week: weekNum }
+}
+
+function getHalfWeekDates(d) {
+  const day = d.getDay() // 0=Sun
+  const isFirstHalf = day >= 1 && day <= 3 // Mon~Wed
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - ((d.getDay() + 6) % 7)) // Monday of this week
+  const wed = new Date(mon); wed.setDate(mon.getDate() + 2)
+  const thu = new Date(mon); thu.setDate(mon.getDate() + 3)
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+  const fmt = dt => `${dt.getMonth() + 1}/${dt.getDate()}`
+  if (isFirstHalf) return { half: '전반', range: `${fmt(mon)}~${fmt(wed)}` }
+  return { half: '후반', range: `${fmt(thu)}~${fmt(sun)}` }
+}
+
+function getDoneGroupKey(dateStr, weekStr, groupBy) {
+  if (!dateStr && !weekStr) return 'other'
+  if (groupBy === 'week') return weekStr || 'other'
+  if (!dateStr) return weekStr || 'other'
+  const d = new Date(dateStr + 'T00:00:00')
+  if (isNaN(d)) return weekStr || 'other'
+  switch (groupBy) {
+    case 'day': return dateStr
+    case 'half-week': {
+      const { year, week } = getISOWeek(d)
+      const { half } = getHalfWeekDates(d)
+      const sortKey = half === '전반' ? 'a' : 'b'
+      return `${year}-W${String(week).padStart(2, '0')}-${sortKey}-${half}`
+    }
+    case 'month': return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    default: return weekStr || 'other'
+  }
+}
+
+function getDoneGroupLabel(key, groupBy) {
+  if (key === 'other') return '기타'
+  switch (groupBy) {
+    case 'day': return key // YYYY-MM-DD
+    case 'half-week': {
+      // key format: YYYY-Www-sortKey-half
+      const parts = key.split('-')
+      const weekLabel = `${parts[0]}-${parts[1]}`
+      const half = parts[3]
+      // Compute date range from week number
+      const year = parseInt(parts[0])
+      const weekNum = parseInt(parts[1].replace('W', ''))
+      const jan4 = new Date(year, 0, 4)
+      const mon = new Date(jan4)
+      mon.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7) + (weekNum - 1) * 7)
+      const fmt = dt => `${dt.getMonth() + 1}/${dt.getDate()}`
+      if (half === '전반') {
+        const wed = new Date(mon); wed.setDate(mon.getDate() + 2)
+        return `${weekLabel} 전반 (${fmt(mon)}~${fmt(wed)})`
+      } else {
+        const thu = new Date(mon); thu.setDate(mon.getDate() + 3)
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+        return `${weekLabel} 후반 (${fmt(thu)}~${fmt(sun)})`
+      }
+    }
+    case 'week': return key
+    case 'month': {
+      const [y, m] = key.split('-')
+      return `${y}년 ${parseInt(m)}월`
+    }
+    default: return key
+  }
+}
+
+const DONE_GROUP_OPTIONS = [
+  { id: 'day', label: '일별' },
+  { id: 'half-week', label: '반주' },
+  { id: 'week', label: '주별' },
+  { id: 'month', label: '월별' },
+]
+
 // ===== Column =====
 function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, onDragOver, onDragLeave, onDrop, onDropWithStatus, onCardClick, onAddClick, expandedZones, setExpandedZones, setDragOver }) {
-  // Group done tasks by week
+  const [doneGroupBy, setDoneGroupBy] = useState('week')
   const isDone = column.id === 'done'
 
   // Split done tasks into sub-groups
@@ -308,12 +391,12 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
   const mainTasks = isDone ? doneTasks : tasks
 
   let grouped = null
-  if (isDone && mainTasks.some(t => t._week)) {
+  if (isDone && mainTasks.length > 0) {
     grouped = {}
     for (const t of mainTasks) {
-      const week = t._week || 'other'
-      if (!grouped[week]) grouped[week] = []
-      grouped[week].push(t)
+      const key = getDoneGroupKey(t._completedAt || t.completed_at, t._week, doneGroupBy)
+      if (!grouped[key]) grouped[key] = []
+      grouped[key].push(t)
     }
   }
 
@@ -323,6 +406,13 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
         <h2>{column.name}</h2>
         <span className="column-count">{tasks.length}</span>
       </div>
+      {isDone && (
+        <div className="done-group-filter">
+          {DONE_GROUP_OPTIONS.map(opt => (
+            <span key={opt.id} className={`done-group-chip${doneGroupBy === opt.id ? ' active' : ''}`} onClick={() => setDoneGroupBy(opt.id)}>{opt.label}</span>
+          ))}
+        </div>
+      )}
       <div
         className={`column-body${dragOver === column.id ? ' drag-over' : ''}`}
         onDragOver={onDragOver}
@@ -332,10 +422,10 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
         {grouped ? (
           Object.entries(grouped)
             .sort(([a], [b]) => b.localeCompare(a))
-            .map(([week, weekTasks]) => (
-              <div key={week} className="week-group">
-                <div className="week-label">{week}</div>
-                {weekTasks.map(task => (
+            .map(([key, groupTasks]) => (
+              <div key={key} className="week-group">
+                <div className="week-label">{getDoneGroupLabel(key, doneGroupBy)}</div>
+                {groupTasks.map(task => (
                   <Card
                     key={task.id}
                     task={task}
@@ -460,6 +550,83 @@ function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
   )
 }
 
+// ===== Cycle detection for depends_on =====
+function wouldCreateCycle(taskId, candidateId, allTasks) {
+  const taskMap = Object.fromEntries(allTasks.map(t => [t.id, t]))
+  const visited = new Set()
+  const stack = [candidateId]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === taskId) return true
+    if (visited.has(current)) continue
+    visited.add(current)
+    const deps = taskMap[current]?.depends_on || []
+    for (const dep of deps) stack.push(dep)
+  }
+  return false
+}
+
+// ===== Doc Tree Picker (inline file tree for refs selection) =====
+function DocTreePicker({ onSelect, selectedRefs = [] }) {
+  const [tree, setTree] = useState(null)
+  const [expandedSections, setExpandedSections] = useState({})
+  const [expandedDirs, setExpandedDirs] = useState({})
+
+  useEffect(() => {
+    fetch(`${API}/docs/tree`).then(r => r.json()).then(setTree).catch(() => {})
+  }, [])
+
+  const toggleSection = (id) => setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }))
+  const toggleDir = (dirPath) => setExpandedDirs(prev => ({ ...prev, [dirPath]: !prev[dirPath] }))
+
+  const renderNodes = (nodes, depth = 0) => {
+    if (!nodes) return null
+    return nodes.map(node => {
+      const refPath = `docs/${node.path}`
+      const isSelected = selectedRefs.includes(refPath)
+      return (
+        <div key={node.path}>
+          <div
+            className={`dtp-item${node.type === 'dir' ? ' dtp-dir' : ''}${isSelected ? ' dtp-selected' : ''}`}
+            style={{ paddingLeft: 8 + depth * 14 }}
+            onClick={() => {
+              if (node.type === 'dir') toggleDir(node.path)
+              else onSelect(refPath)
+            }}
+          >
+            <span className="dtp-icon">{node.type === 'dir' ? (expandedDirs[node.path] ? '▾' : '▸') : isSelected ? '✓' : '─'}</span>
+            <span className="dtp-name">{node.name}</span>
+          </div>
+          {node.type === 'dir' && expandedDirs[node.path] && node.children && renderNodes(node.children, depth + 1)}
+        </div>
+      )
+    })
+  }
+
+  if (!tree) return <div style={{ fontSize: 11, color: '#666', padding: 8 }}>문서 로딩중...</div>
+
+  const typeSections = DOC_TYPES.map(dt => {
+    const folder = tree.children?.find(n => n.type === 'dir' && n.name === dt.id)
+    return { ...dt, children: folder?.children || [] }
+  })
+
+  return (
+    <div className="dtp-container">
+      {typeSections.map(sec => sec.children.length > 0 && (
+        <div key={sec.id}>
+          <div className="dtp-section" onClick={() => toggleSection(sec.id)}>
+            <span>{expandedSections[sec.id] ? '▾' : '▸'} {sec.icon} {sec.label}</span>
+          </div>
+          {expandedSections[sec.id] && renderNodes(sec.children)}
+        </div>
+      ))}
+      {typeSections.every(s => s.children.length === 0) && (
+        <div style={{ fontSize: 11, color: '#666', padding: 8 }}>등록된 문서가 없습니다</div>
+      )}
+    </div>
+  )
+}
+
 // ===== Task Detail Modal (view + edit) =====
 function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onDelete, onClose, onViewDoc }) {
   const [editing, setEditing] = useState(false)
@@ -470,7 +637,9 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
   const [editRefs, setEditRefs] = useState(task.refs || [])
   const [editRefInput, setEditRefInput] = useState('')
   const [editBody, setEditBody] = useState(task.content || '')
-  const [showDoneTasks, setShowDoneTasks] = useState(false)
+  const [showDocPicker, setShowDocPicker] = useState(false)
+  const [depExcludedCols, setDepExcludedCols] = useState(['done'])
+  const [depLabelFilter, setDepLabelFilter] = useState([])
 
   const prio = priorityMap[task.priority]
 
@@ -493,6 +662,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
 
     while (i < lines.length) {
       const line = lines[i]
+      const lineIdx = i // capture for closures
 
       // Fenced code block
       if (line.trim().startsWith('```')) {
@@ -550,7 +720,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
         const text = line.replace(/^\s*- \[x\]:? /, '')
         elements.push(
-          <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
+          <div key={lineIdx} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(lineIdx)}>
             <span className="check-box checked" />
             <span style={{ textDecoration: 'line-through', color: '#666' }}>{renderInline(text)}</span>
           </div>
@@ -559,7 +729,7 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
         const indent = (line.match(/^(\s*)/)[1].length / 2) | 0
         const text = line.replace(/^\s*- \[ \]:? /, '')
         elements.push(
-          <div key={i} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(i)}>
+          <div key={lineIdx} className="checklist-item clickable" style={{ paddingLeft: indent * 20 }} onClick={() => toggleCheckline(lineIdx)}>
             <span className="check-box" />
             <span>{renderInline(text)}</span>
           </div>
@@ -640,23 +810,56 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
             <details>
               <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {editDeps.length > 0 && `(${editDeps.length}개 선택)`}</summary>
               <div className="dep-picker" style={{ marginTop: 8 }}>
-                <label className="dep-toggle" style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, padding: '4px 10px' }}>
-                  <input type="checkbox" checked={showDoneTasks} onChange={e => setShowDoneTasks(e.target.checked)} />
-                  완료된 태스크도 보기
-                </label>
-                {allTasks.filter(t => t.id !== task.id && (showDoneTasks || t._column !== 'done' || editDeps.includes(t.id))).map(t => (
-                  <div
-                    key={t.id}
-                    className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}`}
-                    onClick={() => setEditDeps(prev =>
-                      prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id]
-                    )}
-                  >
-                    <span className="dep-check">{editDeps.includes(t.id) ? '\u2713' : ''}</span>
-                    <span className="dep-title">{t.title}</span>
-                    <span className="dep-col">{t._column}</span>
-                  </div>
-                ))}
+                {(() => {
+                  const columns = [...new Set(allTasks.filter(t => t.id !== task.id).map(t => t._column))]
+                  const allLabelsSet = new Set()
+                  allTasks.filter(t => t.id !== task.id).forEach(t => (t.labels || []).forEach(l => allLabelsSet.add(l)))
+                  const allLabels = [...allLabelsSet]
+                  const toggleCol = c => setDepExcludedCols(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+                  const toggleLabel = l => setDepLabelFilter(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])
+                  const filtered = allTasks.filter(t => {
+                    if (t.id === task.id) return false
+                    if (depExcludedCols.includes(t._column) && !editDeps.includes(t.id)) return false
+                    if (depLabelFilter.length > 0 && !(t.labels || []).some(l => depLabelFilter.includes(l)) && !editDeps.includes(t.id)) return false
+                    return true
+                  })
+                  return <>
+                    <div className="dep-filters">
+                      <div className="dep-filter-row">
+                        <span className="dep-filter-label">컬럼</span>
+                        {columns.map(c => (
+                          <span key={c} className={`dep-filter-chip${!depExcludedCols.includes(c) ? ' active' : ''}`} onClick={() => toggleCol(c)}>{c}</span>
+                        ))}
+                      </div>
+                      {allLabels.length > 0 && (
+                        <div className="dep-filter-row">
+                          <span className="dep-filter-label">라벨</span>
+                          {allLabels.map(l => (
+                            <span key={l} className={`dep-filter-chip${depLabelFilter.includes(l) ? ' active' : ''}`} onClick={() => toggleLabel(l)}>{l}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {filtered.map(t => {
+                      const isCycle = !editDeps.includes(t.id) && wouldCreateCycle(task.id, t.id, allTasks)
+                      return (
+                        <div
+                          key={t.id}
+                          className={`dep-item${editDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}${isCycle ? ' disabled' : ''}`}
+                          title={isCycle ? '순환 참조가 발생합니다' : ''}
+                          onClick={() => {
+                            if (isCycle) return
+                            setEditDeps(prev => prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id])
+                          }}
+                        >
+                          <span className="dep-check">{editDeps.includes(t.id) ? '\u2713' : isCycle ? '⊘' : ''}</span>
+                          <span className="dep-title">{t.title}</span>
+                          <span className="dep-col">{t._column}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                })()}
               </div>
             </details>
           </div>
@@ -668,8 +871,17 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
                   <input
                     value={editRefInput}
                     onChange={e => setEditRefInput(e.target.value)}
-                    placeholder="파일 경로 (예: docs/api-spec.md)"
+                    placeholder="파일 경로 직접 입력"
                     style={{ flex: 1 }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (editRefInput.trim() && !editRefs.includes(editRefInput.trim())) {
+                          setEditRefs(prev => [...prev, editRefInput.trim()])
+                          setEditRefInput('')
+                        }
+                      }
+                    }}
                   />
                   <button type="button" className="btn" onClick={() => {
                     if (editRefInput.trim() && !editRefs.includes(editRefInput.trim())) {
@@ -677,7 +889,16 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
                       setEditRefInput('')
                     }
                   }}>추가</button>
+                  <button type="button" className={`btn${showDocPicker ? ' btn-active' : ''}`} onClick={() => setShowDocPicker(v => !v)}>문서 선택</button>
                 </div>
+                {showDocPicker && (
+                  <DocTreePicker
+                    selectedRefs={editRefs}
+                    onSelect={refPath => {
+                      setEditRefs(prev => prev.includes(refPath) ? prev.filter(x => x !== refPath) : [...prev, refPath])
+                    }}
+                  />
+                )}
                 {editRefs.length > 0 && (
                   <div className="refs-chips">
                     {editRefs.map(r => (
@@ -918,9 +1139,11 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
   const [selectedDeps, setSelectedDeps] = useState([])
   const [refs, setRefs] = useState([])
   const [refInput, setRefInput] = useState('')
+  const [showDocPicker, setShowDocPicker] = useState(false)
   const [body, setBody] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState('')
-  const [showDoneTasks, setShowDoneTasks] = useState(false)
+  const [depExcludedCols, setDepExcludedCols] = useState(['done'])
+  const [depLabelFilter, setDepLabelFilter] = useState([])
 
   const applyTemplate = (templateId) => {
     setSelectedTemplate(templateId)
@@ -1050,21 +1273,48 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
               <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {selectedDeps.length > 0 && `(${selectedDeps.length}개 선택)`}</summary>
               {allTasks.length > 0 ? (
                 <div className="dep-picker" style={{ marginTop: 8 }}>
-                  <label className="dep-toggle" style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6, padding: '4px 10px' }}>
-                    <input type="checkbox" checked={showDoneTasks} onChange={e => setShowDoneTasks(e.target.checked)} />
-                    완료된 태스크도 보기
-                  </label>
-                  {allTasks.filter(t => showDoneTasks || t._column !== 'done' || selectedDeps.includes(t.id)).map(t => (
-                    <div
-                      key={t.id}
-                      className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}`}
-                      onClick={() => toggleDep(t.id)}
-                    >
-                      <span className="dep-check">{selectedDeps.includes(t.id) ? '\u2713' : ''}</span>
-                      <span className="dep-title">{t.title}</span>
-                      <span className="dep-col">{t._column}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const columns = [...new Set(allTasks.map(t => t._column))]
+                    const allLabelsSet = new Set()
+                    allTasks.forEach(t => (t.labels || []).forEach(l => allLabelsSet.add(l)))
+                    const allLabelsList = [...allLabelsSet]
+                    const toggleCol = c => setDepExcludedCols(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+                    const toggleLbl = l => setDepLabelFilter(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l])
+                    const filtered = allTasks.filter(t => {
+                      if (depExcludedCols.includes(t._column) && !selectedDeps.includes(t.id)) return false
+                      if (depLabelFilter.length > 0 && !(t.labels || []).some(l => depLabelFilter.includes(l)) && !selectedDeps.includes(t.id)) return false
+                      return true
+                    })
+                    return <>
+                      <div className="dep-filters">
+                        <div className="dep-filter-row">
+                          <span className="dep-filter-label">컬럼</span>
+                          {columns.map(c => (
+                            <span key={c} className={`dep-filter-chip${!depExcludedCols.includes(c) ? ' active' : ''}`} onClick={() => toggleCol(c)}>{c}</span>
+                          ))}
+                        </div>
+                        {allLabelsList.length > 0 && (
+                          <div className="dep-filter-row">
+                            <span className="dep-filter-label">라벨</span>
+                            {allLabelsList.map(l => (
+                              <span key={l} className={`dep-filter-chip${depLabelFilter.includes(l) ? ' active' : ''}`} onClick={() => toggleLbl(l)}>{l}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {filtered.map(t => (
+                        <div
+                          key={t.id}
+                          className={`dep-item${selectedDeps.includes(t.id) ? ' selected' : ''}${t._column === 'done' ? ' done-task' : ''}`}
+                          onClick={() => toggleDep(t.id)}
+                        >
+                          <span className="dep-check">{selectedDeps.includes(t.id) ? '\u2713' : ''}</span>
+                          <span className="dep-title">{t.title}</span>
+                          <span className="dep-col">{t._column}</span>
+                        </div>
+                      ))}
+                    </>
+                  })()}
                 </div>
               ) : (
                 <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>등록된 태스크가 없습니다</div>
@@ -1080,8 +1330,17 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
                   <input
                     value={refInput}
                     onChange={e => setRefInput(e.target.value)}
-                    placeholder="파일 경로 (예: docs/api-spec.md)"
+                    placeholder="파일 경로 직접 입력"
                     style={{ flex: 1 }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (refInput.trim() && !refs.includes(refInput.trim())) {
+                          setRefs(prev => [...prev, refInput.trim()])
+                          setRefInput('')
+                        }
+                      }
+                    }}
                   />
                   <button type="button" className="btn" onClick={() => {
                     if (refInput.trim() && !refs.includes(refInput.trim())) {
@@ -1089,7 +1348,16 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
                       setRefInput('')
                     }
                   }}>추가</button>
+                  <button type="button" className={`btn${showDocPicker ? ' btn-active' : ''}`} onClick={() => setShowDocPicker(v => !v)}>문서 선택</button>
                 </div>
+                {showDocPicker && (
+                  <DocTreePicker
+                    selectedRefs={refs}
+                    onSelect={refPath => {
+                      setRefs(prev => prev.includes(refPath) ? prev.filter(x => x !== refPath) : [...prev, refPath])
+                    }}
+                  />
+                )}
                 {refs.length > 0 && (
                   <div className="refs-chips">
                     {refs.map(r => (
