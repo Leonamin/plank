@@ -152,7 +152,7 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
   if (editing) {
     return (
       <div className="modal-overlay">
-        <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+        <div className="modal modal--legacy" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
           <h2>태스크 편집</h2>
           <div className="modal-field">
             <label>제목</label>

@@ -531,8 +531,34 @@ body {
   border-radius: 12px;
   width: 560px;
   max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 24px 24px 8px;
+  flex-shrink: 0;
+}
+
+.modal-body {
+  padding: 0 24px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.modal-footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* 레거시: modal-header/body/footer를 쓰지 않는 모달용 폴백 */
+.modal--legacy {
   padding: 24px;
+  overflow-y: auto;
+  display: block;
 }
 
 .modal h2 {

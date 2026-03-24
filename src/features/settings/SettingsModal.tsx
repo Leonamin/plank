@@ -98,8 +98,10 @@ export default function SettingsModal({ config, onSave, onClose }: SettingsModal
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
-        <h2 style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, paddingBottom: 8, marginBottom: 8 }}>보드 설정</h2>
-
+        <div className="modal-header">
+          <h2>보드 설정</h2>
+        </div>
+        <div className="modal-body">
         <div className="modal-field">
           <label>라벨</label>
           <div className="settings-list" style={{ padding: '0 4px' }}>
@@ -147,12 +149,15 @@ export default function SettingsModal({ config, onSave, onClose }: SettingsModal
           </div>
         </div>
 
-        <div className="modal-actions" style={{ position: 'sticky', bottom: 0, background: 'var(--surface)', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <button className="btn" onClick={resetAll} disabled={JSON.stringify(labels) === JSON.stringify(initLabels) && JSON.stringify(priorities) === JSON.stringify(initPriorities)}>전체 되돌리기</button>
-          <button className="btn" onClick={undo} disabled={history.length === 0}>되돌리기</button>
-          <div style={{ flex: 1 }} />
-          <button className="btn" onClick={onClose}>취소</button>
-          <button className="btn btn-primary" onClick={handleSave}>저장</button>
+        </div>
+        <div className="modal-footer">
+          <div className="modal-actions" style={{ marginTop: 0 }}>
+            <button className="btn" onClick={resetAll} disabled={JSON.stringify(labels) === JSON.stringify(initLabels) && JSON.stringify(priorities) === JSON.stringify(initPriorities)}>전체 되돌리기</button>
+            <button className="btn" onClick={undo} disabled={history.length === 0}>되돌리기</button>
+            <div style={{ flex: 1 }} />
+            <button className="btn" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={handleSave}>저장</button>
+          </div>
         </div>
       </div>
     </div>

@@ -60,7 +60,7 @@ export default function CreateModal({ column, labels, priorities, epics, templat
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+      <div className="modal modal--legacy" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
         <h2>새 태스크</h2>
         <form onSubmit={handleSubmit}>
           {templates.length > 0 && (
