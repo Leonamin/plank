@@ -108,6 +108,8 @@ function App() {
   const columns = config.board.columns
   const labelMap = Object.fromEntries((config.labels || []).map(l => [l.id, l]))
   const priorityMap = Object.fromEntries((config.priorities || []).map(p => [p.id, p]))
+  const epics = config.epics || []
+  const epicMap = Object.fromEntries(epics.map(e => [e.id, e]))
 
   // Flatten all tasks for dependency picker
   const allTasks = Object.entries(tasks).flatMap(([col, list]) =>
@@ -178,11 +180,16 @@ function App() {
           )}
           onClearFilters={() => setActiveFilters([])}
         />
+        {epics.length > 0 && (
+          <EpicProgressBar epics={epics} allTasks={allTasks} activeFilters={activeFilters} onToggleFilter={(id) => setActiveFilters(prev =>
+            prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+          )} />
+        )}
         <div className="board">
           {columns.map(col => {
             const colTasks = tasks[col.id] || []
             const filtered = activeFilters.length > 0
-              ? colTasks.filter(t => (t.labels || []).some(l => activeFilters.includes(l)))
+              ? colTasks.filter(t => (t.labels || []).some(l => activeFilters.includes(l)) || activeFilters.includes(`epic:${t.epic}`))
               : colTasks
             return (
             <Column
@@ -191,6 +198,7 @@ function App() {
               tasks={filtered}
               labelMap={labelMap}
               priorityMap={priorityMap}
+              epicMap={epicMap}
               dragOver={dragOver}
               onDragStart={onDragStart}
               onDragOver={(e) => onDragOver(e, col.id)}
@@ -251,8 +259,10 @@ function App() {
           task={selectedTask}
           labelMap={labelMap}
           priorityMap={priorityMap}
+          epicMap={epicMap}
           labels={config.labels || []}
           priorities={config.priorities || []}
+          epics={epics}
           allTasks={allTasks}
           onSave={(updates, opts) => handleEdit(selectedTask, updates, opts)}
           onDelete={() => handleDelete(selectedTask)}
@@ -274,6 +284,7 @@ function App() {
           column={showCreate}
           labels={config.labels || []}
           priorities={config.priorities || []}
+          epics={epics}
           templates={config.templates || []}
           allTasks={allTasks}
           onSubmit={handleCreate}
@@ -380,7 +391,7 @@ const DONE_GROUP_OPTIONS = [
 ]
 
 // ===== Column =====
-function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, onDragOver, onDragLeave, onDrop, onDropWithStatus, onCardClick, onAddClick, expandedZones, setExpandedZones, setDragOver }) {
+function Column({ column, tasks, labelMap, priorityMap, epicMap, dragOver, onDragStart, onDragOver, onDragLeave, onDrop, onDropWithStatus, onCardClick, onAddClick, expandedZones, setExpandedZones, setDragOver }) {
   const [doneGroupBy, setDoneGroupBy] = useState('week')
   const isDone = column.id === 'done'
 
@@ -431,6 +442,7 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
                     task={task}
                     labelMap={labelMap}
                     priorityMap={priorityMap}
+                    epicMap={epicMap}
                     columnId={column.id}
                     onDragStart={onDragStart}
                     onClick={() => onCardClick(task)}
@@ -445,6 +457,7 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
               task={task}
               labelMap={labelMap}
               priorityMap={priorityMap}
+              epicMap={epicMap}
               columnId={column.id}
               onDragStart={onDragStart}
               onClick={() => onCardClick(task)}
@@ -482,6 +495,7 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
                         task={task}
                         labelMap={labelMap}
                         priorityMap={priorityMap}
+                        epicMap={epicMap}
                         columnId={column.id}
                         onDragStart={onDragStart}
                         onClick={() => onCardClick(task)}
@@ -499,12 +513,13 @@ function Column({ column, tasks, labelMap, priorityMap, dragOver, onDragStart, o
 }
 
 // ===== Card =====
-function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
+function Card({ task, labelMap, priorityMap, epicMap, columnId, onDragStart, onClick }) {
   const [dragging, setDragging] = useState(false)
 
   const checkTotal = (task.content?.match(/^\s*- \[[ x]\]/gm) || []).length
   const checkDone = (task.content?.match(/^\s*- \[x\]/gm) || []).length
   const prio = priorityMap[task.priority]
+  const epic = task.epic && epicMap?.[task.epic]
 
   return (
     <div
@@ -519,6 +534,11 @@ function Card({ task, labelMap, priorityMap, columnId, onDragStart, onClick }) {
     >
       <div className="card-title">{task.title}</div>
       <div className="card-meta">
+        {epic && (
+          <span className="card-epic-badge" style={{ borderColor: epic.color, color: epic.color }}>
+            {epic.name}
+          </span>
+        )}
         {(task.labels || []).map(lid => {
           const label = labelMap[lid]
           return label ? (
@@ -628,11 +648,12 @@ function DocTreePicker({ onSelect, selectedRefs = [] }) {
 }
 
 // ===== Task Detail Modal (view + edit) =====
-function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks, onSave, onDelete, onClose, onViewDoc }) {
+function TaskDetail({ task, labelMap, priorityMap, epicMap, labels, priorities, epics, allTasks, onSave, onDelete, onClose, onViewDoc }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
   const [editLabels, setEditLabels] = useState(task.labels || [])
   const [editPriority, setEditPriority] = useState(task.priority || 'p1')
+  const [editEpic, setEditEpic] = useState(task.epic || '')
   const [editDeps, setEditDeps] = useState(task.depends_on || [])
   const [editRefs, setEditRefs] = useState(task.refs || [])
   const [editRefInput, setEditRefInput] = useState('')
@@ -747,14 +768,17 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
   }
 
   const handleSave = () => {
-    onSave({
+    const updates = {
       title: editTitle.trim(),
       labels: editLabels,
       priority: editPriority,
       depends_on: editDeps,
       refs: editRefs,
       content: editBody,
-    })
+    }
+    if (editEpic) updates.epic = editEpic
+    else updates.epic = ''
+    onSave(updates)
   }
 
   if (editing) {
@@ -806,6 +830,30 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
               ))}
             </div>
           </div>
+          {epics.length > 0 && (
+            <div className="modal-field">
+              <label>에픽</label>
+              <div className="picker-group">
+                <span
+                  className={`picker-chip${!editEpic ? ' active' : ''}`}
+                  style={{ borderColor: '#6B7280', background: !editEpic ? '#374151' : 'transparent', color: !editEpic ? '#E5E7EB' : '#6B7280' }}
+                  onClick={() => setEditEpic('')}
+                >없음</span>
+                {epics.map(e => (
+                  <span
+                    key={e.id}
+                    className={`picker-chip${editEpic === e.id ? ' active' : ''}`}
+                    style={{
+                      background: editEpic === e.id ? e.color : 'transparent',
+                      borderColor: e.color,
+                      color: editEpic === e.id ? 'white' : e.color,
+                    }}
+                    onClick={() => setEditEpic(e.id)}
+                  >{e.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="modal-field">
             <details>
               <summary style={{ cursor: 'pointer', userSelect: 'none' }}>선행 조건 {editDeps.length > 0 && `(${editDeps.length}개 선택)`}</summary>
@@ -939,6 +987,11 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
               {task.id}
             </span>
           )}
+          {task.epic && epicMap[task.epic] && (
+            <span className="card-epic-badge" style={{ borderColor: epicMap[task.epic].color, color: epicMap[task.epic].color }}>
+              {epicMap[task.epic].name}
+            </span>
+          )}
           {(task.labels || []).length > 0 ? (
             (task.labels || []).map(lid => {
               const label = labelMap[lid]
@@ -1008,12 +1061,14 @@ function TaskDetail({ task, labelMap, priorityMap, labels, priorities, allTasks,
 function SettingsModal({ config, onSave, onClose }) {
   const initLabels = config.labels || []
   const initPriorities = config.priorities || []
+  const initEpics = config.epics || []
   const [labels, setLabels] = useState(initLabels)
   const [priorities, setPriorities] = useState(initPriorities)
+  const [epics, setEpics] = useState(initEpics)
   const [history, setHistory] = useState([])
 
   const pushHistory = () => {
-    setHistory(prev => [...prev, { labels: JSON.parse(JSON.stringify(labels)), priorities: JSON.parse(JSON.stringify(priorities)) }])
+    setHistory(prev => [...prev, { labels: JSON.parse(JSON.stringify(labels)), priorities: JSON.parse(JSON.stringify(priorities)), epics: JSON.parse(JSON.stringify(epics)) }])
   }
 
   const updateLabel = (index, field, value) => {
@@ -1037,11 +1092,28 @@ function SettingsModal({ config, onSave, onClose }) {
     setPriorities(prev => prev.map((p, i) => i === index ? { ...p, [field]: value } : p))
   }
 
+  const updateEpic = (index, field, value) => {
+    pushHistory()
+    setEpics(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
+  }
+
+  const removeEpic = (index) => {
+    pushHistory()
+    setEpics(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const addEpic = () => {
+    pushHistory()
+    const id = `epic-${Date.now()}`
+    setEpics(prev => [...prev, { id, name: '', color: '#6B7280' }])
+  }
+
   const undo = () => {
     if (history.length === 0) return
     const prev = history[history.length - 1]
     setLabels(prev.labels)
     setPriorities(prev.priorities)
+    setEpics(prev.epics)
     setHistory(h => h.slice(0, -1))
   }
 
@@ -1049,6 +1121,7 @@ function SettingsModal({ config, onSave, onClose }) {
     pushHistory()
     setLabels(initLabels)
     setPriorities(initPriorities)
+    setEpics(initEpics)
   }
 
   const handleSave = () => {
@@ -1060,13 +1133,20 @@ function SettingsModal({ config, onSave, onClose }) {
         id: l.id.startsWith('label-') ? l.name.trim().toLowerCase().replace(/\s+/g, '-') : l.id,
         name: l.name.trim(),
       }))
-    onSave({ ...config, labels: cleanLabels, priorities })
+    const cleanEpics = epics
+      .filter(e => e.name.trim())
+      .map(e => ({
+        ...e,
+        id: e.id.startsWith('epic-') ? e.name.trim().toLowerCase().replace(/\s+/g, '-') : e.id,
+        name: e.name.trim(),
+      }))
+    onSave({ ...config, labels: cleanLabels, priorities, epics: cleanEpics })
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, overflow: 'hidden' }}>
-        <h2>보드 설정</h2>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <h2 style={{ position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 1, paddingBottom: 8, marginBottom: 8 }}>보드 설정</h2>
 
         <div className="modal-field">
           <label>라벨</label>
@@ -1119,7 +1199,32 @@ function SettingsModal({ config, onSave, onClose }) {
           </div>
         </div>
 
-        <div className="modal-actions">
+        <div className="modal-field">
+          <label>에픽</label>
+          <div className="settings-list" style={{ padding: '0 4px' }}>
+            {epics.map((e, i) => (
+              <div key={i} className="settings-row">
+                <input
+                  type="color"
+                  value={e.color}
+                  onChange={ev => updateEpic(i, 'color', ev.target.value)}
+                  className="color-input"
+                />
+                <input
+                  value={e.name}
+                  onChange={ev => updateEpic(i, 'name', ev.target.value)}
+                  placeholder="에픽 이름"
+                  className="settings-name-input"
+                />
+                {e.name && <span className="card-epic-badge" style={{ borderColor: e.color, color: e.color }}>{e.name}</span>}
+                <button className="btn-icon" onClick={() => removeEpic(i)} title="삭제">&times;</button>
+              </div>
+            ))}
+            <button className="btn-add" onClick={addEpic}>+ 에픽 추가</button>
+          </div>
+        </div>
+
+        <div className="modal-actions" style={{ position: 'sticky', bottom: 0, background: 'var(--surface)', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <button className="btn" onClick={resetAll} disabled={JSON.stringify(labels) === JSON.stringify(initLabels) && JSON.stringify(priorities) === JSON.stringify(initPriorities)}>전체 되돌리기</button>
           <button className="btn" onClick={undo} disabled={history.length === 0}>되돌리기</button>
           <div style={{ flex: 1 }} />
@@ -1132,10 +1237,11 @@ function SettingsModal({ config, onSave, onClose }) {
 }
 
 // ===== Create Task Modal =====
-function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit, onClose }) {
+function CreateModal({ column, labels, priorities, epics, templates, allTasks, onSubmit, onClose }) {
   const [title, setTitle] = useState('')
   const [selectedLabels, setSelectedLabels] = useState([])
   const [priority, setPriority] = useState('p1')
+  const [selectedEpic, setSelectedEpic] = useState('')
   const [selectedDeps, setSelectedDeps] = useState([])
   const [refs, setRefs] = useState([])
   const [refInput, setRefInput] = useState('')
@@ -1167,7 +1273,7 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!title.trim()) return
-    onSubmit({
+    const data = {
       column,
       title: title.trim(),
       labels: selectedLabels,
@@ -1175,7 +1281,9 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
       depends_on: selectedDeps,
       refs,
       body: body.trim(),
-    })
+    }
+    if (selectedEpic) data.epic = selectedEpic
+    onSubmit(data)
   }
 
   return (
@@ -1267,6 +1375,31 @@ function CreateModal({ column, labels, priorities, templates, allTasks, onSubmit
               ))}
             </div>
           </div>
+
+          {epics.length > 0 && (
+            <div className="modal-field">
+              <label>에픽</label>
+              <div className="picker-group">
+                <span
+                  className={`picker-chip${!selectedEpic ? ' active' : ''}`}
+                  style={{ borderColor: '#6B7280', background: !selectedEpic ? '#374151' : 'transparent', color: !selectedEpic ? '#E5E7EB' : '#6B7280' }}
+                  onClick={() => setSelectedEpic('')}
+                >없음</span>
+                {epics.map(e => (
+                  <span
+                    key={e.id}
+                    className={`picker-chip${selectedEpic === e.id ? ' active' : ''}`}
+                    style={{
+                      background: selectedEpic === e.id ? e.color : 'transparent',
+                      borderColor: e.color,
+                      color: selectedEpic === e.id ? 'white' : e.color,
+                    }}
+                    onClick={() => setSelectedEpic(e.id)}
+                  >{e.name}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="modal-field">
             <details>
@@ -1536,6 +1669,46 @@ function renderMarkdownLines(lines) {
     i++
   }
   return elements
+}
+
+// ===== Epic Progress Bar =====
+function EpicProgressBar({ epics, allTasks, activeFilters, onToggleFilter }) {
+  // Only count active tasks (not done)
+  const activeTasks = allTasks.filter(t => t._column !== 'done')
+
+  const epicStats = epics.map(epic => {
+    const epicTasks = activeTasks.filter(t => t.epic === epic.id)
+    const total = epicTasks.length
+    const done = epicTasks.filter(t => {
+      const checkTotal = (t.content?.match(/^\s*- \[[ x]\]/gm) || []).length
+      const checkDone = (t.content?.match(/^\s*- \[x\]/gm) || []).length
+      return checkTotal > 0 && checkDone === checkTotal
+    }).length
+    return { ...epic, total, done }
+  }).filter(e => e.total > 0)
+
+  if (epicStats.length === 0) return null
+
+  return (
+    <div className="epic-progress-bar">
+      {epicStats.map(epic => {
+        const pct = epic.total > 0 ? Math.round((epic.done / epic.total) * 100) : 0
+        const isFiltered = activeFilters.includes(`epic:${epic.id}`)
+        return (
+          <div key={epic.id} className={`epic-progress-item${isFiltered ? ' active' : ''}`} onClick={() => onToggleFilter(`epic:${epic.id}`)}>
+            <div className="epic-progress-header">
+              <span className="epic-progress-dot" style={{ background: epic.color }} />
+              <span className="epic-progress-name">{epic.name}</span>
+              <span className="epic-progress-count">{epic.done}/{epic.total}</span>
+            </div>
+            <div className="epic-progress-track">
+              <div className="epic-progress-fill" style={{ width: `${pct}%`, background: epic.color }} />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ===== Docs View =====

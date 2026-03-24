@@ -40,6 +40,8 @@ labels:
     name: "게스트"
     color: "#EC4899"
 
+epics: []
+
 priorities:
   - id: p0
     name: "P0 지금당장"

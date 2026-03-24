@@ -169,6 +169,80 @@ body {
   margin-left: auto;
 }
 
+.card-epic-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid;
+  letter-spacing: 0.3px;
+}
+
+/* Epic Progress Bar */
+.epic-progress-bar {
+  display: flex;
+  gap: 12px;
+  padding: 6px 16px;
+  overflow-x: auto;
+}
+
+.epic-progress-item {
+  min-width: 120px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.epic-progress-item:hover {
+  background: #1F2937;
+}
+
+.epic-progress-item.active {
+  background: #1F2937;
+  border-color: #374151;
+}
+
+.epic-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.epic-progress-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.epic-progress-name {
+  font-size: 11px;
+  color: #D1D5DB;
+  font-weight: 500;
+}
+
+.epic-progress-count {
+  font-size: 10px;
+  color: #6B7280;
+  margin-left: auto;
+}
+
+.epic-progress-track {
+  height: 3px;
+  background: #374151;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.epic-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
 /* ===== Picker chips (labels & priority in modals) ===== */
 .picker-group {
   display: flex;

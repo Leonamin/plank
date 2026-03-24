@@ -199,7 +199,7 @@ app.post('/api/tasks/move', async (req, res) => {
 // Create new task
 app.post('/api/tasks', async (req, res) => {
   try {
-    const { column, title, labels, priority, depends_on, refs, body, id: customId, template_id } = req.body
+    const { column, title, labels, priority, depends_on, refs, epic, body, id: customId, template_id } = req.body
     const id = customId || slugify(title) || `task-${crypto.randomUUID().slice(0, 8)}`
     const filename = `${id}.md`
 
@@ -220,6 +220,7 @@ app.post('/api/tasks', async (req, res) => {
     }
     if (depends_on?.length) frontmatter.depends_on = depends_on
     if (refs?.length) frontmatter.refs = refs
+    if (epic) frontmatter.epic = epic
 
     const content = matter.stringify(taskBody, frontmatter)
     const colDir = path.join(TASKS_DIR, column || 'backlog')
