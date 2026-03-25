@@ -326,67 +326,73 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
-        <h2>{task.title}</h2>
-        <div className="card-meta" style={{ marginBottom: 16 }}>
-          {task.id && <span className="task-id-badge">{task.id}</span>}
-          {task.epic && epicMap[task.epic] && (
-            <span className="card-epic-badge" style={{ borderColor: epicMap[task.epic].color, color: epicMap[task.epic].color }}>
-              {epicMap[task.epic].name}
-            </span>
-          )}
-          {(task.labels || []).length > 0 ? (
-            (task.labels || []).map(lid => {
-              const label = labelMap[lid]
-              return label ? (
-                <span key={lid} className="card-label" style={{ background: label.color }}>{label.name}</span>
-              ) : null
-            })
-          ) : (
-            <span style={{ fontSize: 11, color: '#555' }}>라벨 없음</span>
-          )}
-          {prio ? (
-            <span className="card-priority-badge" style={{ background: prio.color }}>{prio.name}</span>
-          ) : (
-            <span style={{ fontSize: 11, color: '#555' }}>우선순위 없음</span>
-          )}
-          {task.created && (
-            <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>생성: {task.created}</span>
-          )}
-        </div>
-        {(task.depends_on?.length ?? 0) > 0 && (
-          <div className="card-deps" style={{ marginBottom: 12 }}>
-            선행 조건: {task.depends_on!.join(', ')}
+        <div className="modal-header">
+          <h2>{task.title}</h2>
+          <div className="card-meta" style={{ marginBottom: 0 }}>
+            {task.id && <span className="task-id-badge">{task.id}</span>}
+            {task.epic && epicMap[task.epic] && (
+              <span className="card-epic-badge" style={{ borderColor: epicMap[task.epic].color, color: epicMap[task.epic].color }}>
+                {epicMap[task.epic].name}
+              </span>
+            )}
+            {(task.labels || []).length > 0 ? (
+              (task.labels || []).map(lid => {
+                const label = labelMap[lid]
+                return label ? (
+                  <span key={lid} className="card-label" style={{ background: label.color }}>{label.name}</span>
+                ) : null
+              })
+            ) : (
+              <span style={{ fontSize: 11, color: '#555' }}>라벨 없음</span>
+            )}
+            {prio ? (
+              <span className="card-priority-badge" style={{ background: prio.color }}>{prio.name}</span>
+            ) : (
+              <span style={{ fontSize: 11, color: '#555' }}>우선순위 없음</span>
+            )}
+            {task.created && (
+              <span style={{ fontSize: 12, color: '#888', marginLeft: 'auto' }}>생성: {task.created}</span>
+            )}
           </div>
-        )}
-        {(task.refs?.length ?? 0) > 0 && (
-          <div className="task-refs" style={{ marginBottom: 12 }}>
-            <span style={{ fontSize: 12, color: '#888' }}>참고 문서:</span>
-            <div className="refs-chips" style={{ marginTop: 4 }}>
-              {task.refs!.map(r => (
-                <span key={r} className="ref-chip ref-chip-readonly"
-                  onClick={() => {
-                    if (r.startsWith('docs/') && onViewDoc) {
-                      onViewDoc(r)
-                      onClose()
-                    } else {
-                      navigator.clipboard.writeText(r)
-                    }
-                  }}
-                  title={r.startsWith('docs/') ? '클릭하여 문서 보기' : '클릭하여 경로 복사'}
-                >
-                  {r.startsWith('docs/') ? '📄 ' : '📁 '}{r}
-                </span>
-              ))}
+        </div>
+        <div className="modal-body">
+          {(task.depends_on?.length ?? 0) > 0 && (
+            <div className="card-deps" style={{ marginBottom: 12 }}>
+              선행 조건: {task.depends_on!.join(', ')}
             </div>
+          )}
+          {(task.refs?.length ?? 0) > 0 && (
+            <div className="task-refs" style={{ marginBottom: 12 }}>
+              <span style={{ fontSize: 12, color: '#888' }}>참고 문서:</span>
+              <div className="refs-chips" style={{ marginTop: 4 }}>
+                {task.refs!.map(r => (
+                  <span key={r} className="ref-chip ref-chip-readonly"
+                    onClick={() => {
+                      if (r.startsWith('docs/') && onViewDoc) {
+                        onViewDoc(r)
+                        onClose()
+                      } else {
+                        navigator.clipboard.writeText(r)
+                      }
+                    }}
+                    title={r.startsWith('docs/') ? '클릭하여 문서 보기' : '클릭하여 경로 복사'}
+                  >
+                    {r.startsWith('docs/') ? '📄 ' : '📁 '}{r}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="task-detail-content">
+            {renderContent(task.content)}
           </div>
-        )}
-        <div className="task-detail-content">
-          {renderContent(task.content)}
         </div>
-        <div className="modal-actions">
-          <button className="btn" onClick={() => setEditing(true)}>편집</button>
-          <button className="btn btn-danger" onClick={onDelete}>삭제</button>
-          <button className="btn" onClick={onClose}>닫기</button>
+        <div className="modal-footer">
+          <div className="modal-actions" style={{ marginTop: 0 }}>
+            <button className="btn" onClick={() => setEditing(true)}>편집</button>
+            <button className="btn btn-danger" onClick={onDelete}>삭제</button>
+            <button className="btn" onClick={onClose}>닫기</button>
+          </div>
         </div>
       </div>
     </div>

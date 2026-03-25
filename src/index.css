@@ -555,7 +555,7 @@ body {
 }
 
 /* 레거시: modal-header/body/footer를 쓰지 않는 모달용 폴백 */
-.modal--legacy {
+.modal.modal--legacy {
   padding: 24px;
   overflow-y: auto;
   display: block;
