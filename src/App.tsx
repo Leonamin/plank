@@ -9,6 +9,8 @@ import TaskDetail from './features/task/TaskDetail'
 import CreateModal from './features/task/CreateModal'
 import SettingsModal from './features/settings/SettingsModal'
 import DocsView from './features/docs/DocsView'
+import SearchModal from './features/search/SearchModal'
+import { useSearch } from './hooks/useSearch'
 
 const API = '/api'
 
@@ -48,6 +50,14 @@ function App() {
 
   const { toasts, addToast, dismissToast } = useToasts()
 
+  const search = useSearch({
+    tasks,
+    config,
+    modalOpen: { selectedTask, showCreate, showSettings },
+    onSelectTask: (task) => setSelectedTask(task),
+    onSelectDoc: (docPath) => viewDoc(docPath),
+  })
+
   const { dragOver, setDragOver, onDragStart, onDragOver, onDragLeave, onDrop } = useDragDrop({
     onAfterMove: fetchData,
     addToast,
@@ -60,6 +70,7 @@ function App() {
   const priorityMap = Object.fromEntries((config.priorities || []).map(p => [p.id, p]))
   const epics = config.epics || []
   const epicMap = Object.fromEntries(epics.map(e => [e.id, e]))
+  const columnMap = Object.fromEntries(columns.map(c => [c.id, c.name]))
 
   const allTasks = Object.entries(tasks).flatMap(([col, list]) =>
     list.map(t => ({ ...t, _column: col }))
@@ -164,6 +175,7 @@ function App() {
           onDelete={() => handleDelete(selectedTask)}
           onClose={() => setSelectedTask(null)}
           onViewDoc={viewDoc}
+          addToast={addToast}
         />
       )}
 
@@ -187,6 +199,22 @@ function App() {
           onClose={() => setShowCreate(null)}
         />
       )}
+
+      <SearchModal
+        isOpen={search.isOpen}
+        query={search.query}
+        onQueryChange={search.setQuery}
+        results={search.results}
+        selectedIndex={search.selectedIndex}
+        docsLoading={search.docsLoading}
+        labelMap={labelMap}
+        priorityMap={priorityMap}
+        epicMap={epicMap}
+        columnMap={columnMap}
+        onSelect={search.handleSelect}
+        onClose={search.close}
+        onKeyDown={search.handleKeyDown}
+      />
 
       {toasts.length > 0 && (
         <div className="toast-container">

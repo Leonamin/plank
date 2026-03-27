@@ -388,6 +388,35 @@ app.get('/api/docs/tree', async (req, res) => {
   }
 })
 
+app.get('/api/docs/flat', async (req, res) => {
+  try {
+    await fs.mkdir(DOCS_DIR, { recursive: true })
+    const results = []
+    async function traverse(dir, basePath = '') {
+      let entries
+      try { entries = await fs.readdir(dir, { withFileTypes: true }) } catch { return }
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue
+        const entryPath = basePath ? `${basePath}/${entry.name}` : entry.name
+        if (entry.isDirectory()) {
+          await traverse(path.join(dir, entry.name), entryPath)
+        } else if (entry.name.endsWith('.md')) {
+          try {
+            const raw = await fs.readFile(path.join(dir, entry.name), 'utf-8')
+            const { content } = matter(raw)
+            const category = basePath.split('/')[0] || ''
+            results.push({ path: entryPath, name: entry.name.replace(/\.md$/, ''), category, content })
+          } catch { /* skip unreadable files */ }
+        }
+      }
+    }
+    await traverse(DOCS_DIR)
+    res.json(results)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.get('/api/docs/*', async (req, res) => {
   try {
     const docPath = resolveDocPath(req.params[0])

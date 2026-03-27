@@ -63,3 +63,14 @@ export interface DocNode {
   type: 'file' | 'dir'
   children?: DocNode[]
 }
+
+export interface FlatDoc {
+  path: string
+  name: string
+  category: string
+  content: string
+}
+
+export type SearchResult =
+  | { type: 'task'; task: Task }
+  | { type: 'doc'; doc: FlatDoc }
