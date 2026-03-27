@@ -17,9 +17,10 @@ interface TaskDetailProps {
   onDelete: () => void
   onClose: () => void
   onViewDoc?: (docPath: string) => void
+  addToast?: (message: string) => void
 }
 
-export default function TaskDetail({ task, labelMap, priorityMap, epicMap, labels, priorities, epics, allTasks, onSave, onDelete, onClose, onViewDoc }: TaskDetailProps) {
+export default function TaskDetail({ task, labelMap, priorityMap, epicMap, labels, priorities, epics, allTasks, onSave, onDelete, onClose, onViewDoc, addToast }: TaskDetailProps) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
   const [editLabels, setEditLabels] = useState(task.labels || [])
@@ -32,6 +33,20 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
   const [showDocPicker, setShowDocPicker] = useState(false)
   const [depExcludedCols, setDepExcludedCols] = useState<string[]>(['done'])
   const [depLabelFilter, setDepLabelFilter] = useState<string[]>([])
+  const [expandedEditor, setExpandedEditor] = useState(false)
+
+  const startEditing = () => {
+    setEditTitle(task.title)
+    setEditLabels(task.labels || [])
+    setEditPriority(task.priority || 'p1')
+    setEditEpic(task.epic || '')
+    setEditDeps(task.depends_on || [])
+    setEditRefs(task.refs || [])
+    setEditRefInput('')
+    setEditBody(task.content || '')
+    setExpandedEditor(false)
+    setEditing(true)
+  }
 
   const prio = priorityMap[task.priority || '']
 
@@ -146,13 +161,15 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
       content: editBody,
       epic: editEpic || '',
     }
-    onSave(updates)
+    onSave(updates, { keepOpen: true })
+    setEditing(false)
+    setExpandedEditor(false)
   }
 
   if (editing) {
     return (
-      <div className="modal-overlay">
-        <div className="modal modal--legacy" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+      <div className="modal-overlay" onClick={() => setEditing(false)}>
+        <div className={`modal modal--legacy${expandedEditor ? ' modal--expanded' : ''}`} onClick={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') { setEditing(false); setExpandedEditor(false) } }}>
           <h2>태스크 편집</h2>
           <div className="modal-field">
             <label>제목</label>
@@ -311,11 +328,16 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
             </details>
           </div>
           <div className="modal-field">
-            <label>내용 (마크다운)</label>
-            <textarea value={editBody} onChange={e => setEditBody(e.target.value)} style={{ minHeight: 180 }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label>내용 (마크다운)</label>
+              <button className="btn" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setExpandedEditor(v => !v)}>
+                {expandedEditor ? '축소' : '확장'}
+              </button>
+            </div>
+            <textarea value={editBody} onChange={e => setEditBody(e.target.value)} style={{ minHeight: expandedEditor ? '50vh' : 180 }} />
           </div>
           <div className="modal-actions">
-            <button className="btn" onClick={() => setEditing(false)}>취소</button>
+            <button className="btn" onClick={() => { setEditing(false); setExpandedEditor(false) }}>취소</button>
             <button className="btn btn-primary" onClick={handleSave}>저장</button>
           </div>
         </div>
@@ -325,11 +347,11 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+      <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') onClose() }} tabIndex={-1}>
         <div className="modal-header">
           <h2>{task.title}</h2>
           <div className="card-meta" style={{ marginBottom: 0 }}>
-            {task.id && <span className="task-id-badge">{task.id}</span>}
+            {task.id && <span className="task-id-badge copyable" onClick={() => { navigator.clipboard.writeText(task.id); addToast?.('ID 복사됨') }} title="클릭하여 ID 복사">{task.id}</span>}
             {task.epic && epicMap[task.epic] && (
               <span className="card-epic-badge" style={{ borderColor: epicMap[task.epic].color, color: epicMap[task.epic].color }}>
                 {epicMap[task.epic].name}
@@ -358,7 +380,12 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
         <div className="modal-body">
           {(task.depends_on?.length ?? 0) > 0 && (
             <div className="card-deps" style={{ marginBottom: 12 }}>
-              선행 조건: {task.depends_on!.join(', ')}
+              선행 조건: {task.depends_on!.map((dep, i) => (
+                <React.Fragment key={dep}>
+                  {i > 0 && ', '}
+                  <span className="task-id-badge copyable" onClick={() => { navigator.clipboard.writeText(dep); addToast?.('ID 복사됨') }} title="클릭하여 ID 복사">{dep}</span>
+                </React.Fragment>
+              ))}
             </div>
           )}
           {(task.refs?.length ?? 0) > 0 && (
@@ -373,6 +400,7 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
                         onClose()
                       } else {
                         navigator.clipboard.writeText(r)
+                        addToast?.('경로 복사됨')
                       }
                     }}
                     title={r.startsWith('docs/') ? '클릭하여 문서 보기' : '클릭하여 경로 복사'}
@@ -389,7 +417,7 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
         </div>
         <div className="modal-footer">
           <div className="modal-actions" style={{ marginTop: 0 }}>
-            <button className="btn" onClick={() => setEditing(true)}>편집</button>
+            <button className="btn" onClick={startEditing}>편집</button>
             <button className="btn btn-danger" onClick={onDelete}>삭제</button>
             <button className="btn" onClick={onClose}>닫기</button>
           </div>

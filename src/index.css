@@ -555,7 +555,13 @@ body {
 }
 
 /* 레거시: modal-header/body/footer를 쓰지 않는 모달용 폴백 */
-.modal.modal--legacy {
+.modal.modal--expanded {
+  width: 90vw;
+  max-width: 900px;
+  max-height: 90vh;
+}
+
+.modal--legacy {
   padding: 24px;
   overflow-y: auto;
   display: block;
