@@ -97,6 +97,7 @@ function App() {
         <>
           <LabelFilterBar
             labels={config.labels || []}
+            priorities={config.priorities || []}
             activeFilters={activeFilters}
             onToggleFilter={(id) => setActiveFilters(prev =>
               prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
@@ -122,7 +123,11 @@ function App() {
             {columns.map(col => {
               const colTasks = tasks[col.id] || []
               const filtered = activeFilters.length > 0
-                ? colTasks.filter(t => (t.labels || []).some(l => activeFilters.includes(l)) || activeFilters.includes(`epic:${t.epic}`))
+                ? colTasks.filter(t =>
+                    (t.labels || []).some(l => activeFilters.includes(l)) ||
+                    activeFilters.includes(`epic:${t.epic}`) ||
+                    activeFilters.includes(`priority:${t.priority}`)
+                  )
                 : colTasks
               return (
                 <Column
@@ -211,10 +216,16 @@ function App() {
         results={search.results}
         selectedIndex={search.selectedIndex}
         docsLoading={search.docsLoading}
+        labels={config.labels || []}
+        priorities={config.priorities || []}
         labelMap={labelMap}
         priorityMap={priorityMap}
         epicMap={epicMap}
         columnMap={columnMap}
+        filterLabels={search.filterLabels}
+        filterPriorities={search.filterPriorities}
+        onToggleFilterLabel={search.toggleFilterLabel}
+        onToggleFilterPriority={search.toggleFilterPriority}
         onSelect={search.handleSelect}
         onClose={search.close}
         onKeyDown={search.handleKeyDown}

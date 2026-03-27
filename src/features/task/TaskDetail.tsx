@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Task, Label, Priority, Epic } from '../../types'
 import { renderInline } from '../../utils/markdown'
 import { wouldCreateCycle } from '../../utils/cycle'
@@ -34,6 +34,18 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
   const [depExcludedCols, setDepExcludedCols] = useState<string[]>(['done'])
   const [depLabelFilter, setDepLabelFilter] = useState<string[]>([])
   const [expandedEditor, setExpandedEditor] = useState(false)
+
+  useEffect(() => {
+    if (editing) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [editing, onClose])
 
   const startEditing = () => {
     setEditTitle(task.title)
@@ -347,7 +359,7 @@ export default function TaskDetail({ task, labelMap, priorityMap, epicMap, label
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Escape') onClose() }} tabIndex={-1}>
+      <div className="modal" onClick={e => e.stopPropagation()} tabIndex={-1}>
         <div className="modal-header">
           <h2>{task.title}</h2>
           <div className="card-meta" style={{ marginBottom: 0 }}>

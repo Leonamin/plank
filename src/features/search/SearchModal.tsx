@@ -8,10 +8,16 @@ interface SearchModalProps {
   results: SearchResult[]
   selectedIndex: number
   docsLoading: boolean
+  labels: Label[]
+  priorities: Priority[]
   labelMap: Record<string, Label>
   priorityMap: Record<string, Priority>
   epicMap: Record<string, Epic>
   columnMap: Record<string, string>
+  filterLabels: string[]
+  filterPriorities: string[]
+  onToggleFilterLabel: (id: string) => void
+  onToggleFilterPriority: (id: string) => void
   onSelect: (result: SearchResult) => void
   onClose: () => void
   onKeyDown: (e: React.KeyboardEvent) => void
@@ -24,10 +30,16 @@ export default function SearchModal({
   results,
   selectedIndex,
   docsLoading,
+  labels,
+  priorities,
   labelMap,
   priorityMap,
   epicMap,
   columnMap,
+  filterLabels,
+  filterPriorities,
+  onToggleFilterLabel,
+  onToggleFilterPriority,
   onSelect,
   onClose,
   onKeyDown,
@@ -52,6 +64,8 @@ export default function SearchModal({
   const taskResults = results.filter((r): r is Extract<SearchResult, { type: 'task' }> => r.type === 'task')
   const docResults = results.filter((r): r is Extract<SearchResult, { type: 'doc' }> => r.type === 'doc')
 
+  const hasFilter = filterLabels.length > 0 || filterPriorities.length > 0
+
   let flatIndex = 0
 
   const isMac = navigator.platform.toUpperCase().includes('MAC')
@@ -73,16 +87,46 @@ export default function SearchModal({
           onChange={e => onQueryChange(e.target.value)}
         />
 
+        {(labels.length > 0 || priorities.length > 0) && (
+          <div className="search-filters">
+            {labels.map(l => (
+              <button
+                key={l.id}
+                className={`search-filter-chip${filterLabels.includes(l.id) ? ' active' : ''}`}
+                style={{ '--filter-color': l.color } as React.CSSProperties}
+                onClick={() => onToggleFilterLabel(l.id)}
+              >
+                <span className="search-filter-dot" style={{ background: l.color }} />
+                {l.name}
+              </button>
+            ))}
+            {labels.length > 0 && priorities.length > 0 && (
+              <span className="search-filter-divider" />
+            )}
+            {priorities.map(p => (
+              <button
+                key={p.id}
+                className={`search-filter-chip${filterPriorities.includes(p.id) ? ' active' : ''}`}
+                style={{ '--filter-color': p.color } as React.CSSProperties}
+                onClick={() => onToggleFilterPriority(p.id)}
+              >
+                <span className="search-filter-dot" style={{ background: p.color }} />
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="search-results">
           {docsLoading && !results.length && (
             <div className="search-loading">문서를 불러오는 중...</div>
           )}
 
-          {!query.trim() && (
+          {!query.trim() && !hasFilter && (
             <div className="search-empty">ID, 제목, 내용으로 태스크와 문서를 검색할 수 있습니다</div>
           )}
 
-          {query.trim() && !results.length && !docsLoading && (
+          {(query.trim() || hasFilter) && !results.length && !docsLoading && (
             <div className="search-empty">검색 결과 없음</div>
           )}
 

@@ -23,6 +23,8 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [flatDocs, setFlatDocs] = useState<FlatDoc[]>([])
   const [docsLoading, setDocsLoading] = useState(false)
+  const [filterLabels, setFilterLabels] = useState<string[]>([])
+  const [filterPriorities, setFilterPriorities] = useState<string[]>([])
   const flatDocsLoaded = useRef(false)
 
   // Lazy-load flatDocs when modal opens
@@ -66,14 +68,20 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
 
   // Search results via useMemo (synchronous, no debounce needed)
   const results = useMemo<SearchResult[]>(() => {
-    if (!query.trim() || !config) return []
-    const lq = query.toLowerCase()
+    const hasQuery = query.trim().length > 0
+    const hasFilter = filterLabels.length > 0 || filterPriorities.length > 0
+    if (!hasQuery && !hasFilter) return []
+    if (!config) return []
 
+    const lq = query.toLowerCase()
     const labelMap = Object.fromEntries((config.labels || []).map(l => [l.id, l.name]))
     const epicMap = Object.fromEntries((config.epics || []).map(e => [e.id, e.name]))
 
-    const taskResults: SearchResult[] = allTasks
-      .filter(t => {
+    let taskList = allTasks
+
+    // Apply text search
+    if (hasQuery) {
+      taskList = taskList.filter(t => {
         if (t.id.toLowerCase().includes(lq)) return true
         if (t.title.toLowerCase().includes(lq)) return true
         if (t.content && t.content.toLowerCase().includes(lq)) return true
@@ -81,10 +89,23 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
         if (t.epic && (epicMap[t.epic] || t.epic).toLowerCase().includes(lq)) return true
         return false
       })
+    }
+
+    // Apply label/priority filter (AND between label group and priority group)
+    if (hasFilter) {
+      taskList = taskList.filter(t => {
+        const labelMatch = filterLabels.length === 0 || (t.labels || []).some(l => filterLabels.includes(l))
+        const priorityMatch = filterPriorities.length === 0 || filterPriorities.includes(t.priority || '')
+        return labelMatch && priorityMatch
+      })
+    }
+
+    const taskResults: SearchResult[] = taskList
       .slice(0, 10)
       .map(task => ({ type: 'task' as const, task }))
 
-    const docResults: SearchResult[] = flatDocs
+    // Doc results only when there's a query (filters don't apply to docs)
+    const docResults: SearchResult[] = hasQuery ? flatDocs
       .filter(d => {
         if (d.name.toLowerCase().includes(lq)) return true
         if (d.category.toLowerCase().includes(lq)) return true
@@ -92,10 +113,10 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
         return false
       })
       .slice(0, 10)
-      .map(doc => ({ type: 'doc' as const, doc }))
+      .map(doc => ({ type: 'doc' as const, doc })) : []
 
     return [...taskResults, ...docResults]
-  }, [query, allTasks, flatDocs, config])
+  }, [query, filterLabels, filterPriorities, allTasks, flatDocs, config])
 
   // Reset selectedIndex when results change
   useEffect(() => {
@@ -128,6 +149,18 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
   const close = useCallback(() => {
     setIsOpen(false)
     setQuery('')
+    setSelectedIndex(0)
+    setFilterLabels([])
+    setFilterPriorities([])
+  }, [])
+
+  const toggleFilterLabel = useCallback((id: string) => {
+    setFilterLabels(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setSelectedIndex(0)
+  }, [])
+
+  const toggleFilterPriority = useCallback((id: string) => {
+    setFilterPriorities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     setSelectedIndex(0)
   }, [])
 
@@ -165,6 +198,10 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
     selectedIndex,
     results,
     docsLoading,
+    filterLabels,
+    filterPriorities,
+    toggleFilterLabel,
+    toggleFilterPriority,
     open,
     close,
     handleSelect,
