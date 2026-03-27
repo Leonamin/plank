@@ -85,6 +85,10 @@ function App() {
           <button className={`header-tab${activeView === 'docs' ? ' active' : ''}`} onClick={() => { setActiveView('docs'); fetchDocsTree() }}>문서</button>
         </div>
         <div className="header-actions">
+          <button className="btn search-trigger" onClick={() => search.open()}>
+            <span className="search-trigger-text">검색</span>
+            <kbd className="search-trigger-kbd">{navigator.platform?.toUpperCase().includes('MAC') ? '⌘K' : 'Ctrl+K'}</kbd>
+          </button>
           <button className="btn" onClick={() => setShowSettings(true)}>설정</button>
         </div>
       </header>

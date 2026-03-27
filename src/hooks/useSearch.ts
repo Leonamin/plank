@@ -120,6 +120,11 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, modalOpen.selectedTask, modalOpen.showCreate, modalOpen.showSettings])
 
+  const open = useCallback(() => {
+    if (modalOpen.selectedTask || modalOpen.showCreate || modalOpen.showSettings) return
+    setIsOpen(true)
+  }, [modalOpen.selectedTask, modalOpen.showCreate, modalOpen.showSettings])
+
   const close = useCallback(() => {
     setIsOpen(false)
     setQuery('')
@@ -160,6 +165,7 @@ export function useSearch({ tasks, config, modalOpen, onSelectTask, onSelectDoc 
     selectedIndex,
     results,
     docsLoading,
+    open,
     close,
     handleSelect,
     handleKeyDown,
